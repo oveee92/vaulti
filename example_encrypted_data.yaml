@@ -10,7 +10,7 @@ enc_variable: !vault |
 
 plain_variable: gonna
 
-list_variable:
+list_variable: # Encrypted variables in a list probably isn't really valid for ansible though
   - !vault |
     $ANSIBLE_VAULT;1.1;AES256
     66323661363266353635316639333063333134633831613763333031646566323531393238353162
@@ -18,8 +18,6 @@ list_variable:
     63663636666431396632303634613033383561343538303937653334653565363732336432663935
     6364636334336565390a313362376230393764383663316139323465376165333533656633353739
     3731
-
-
 list_of_dicts:
   - plaintext: you
     encrypted: !vault |
