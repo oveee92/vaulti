@@ -7,7 +7,6 @@ import subprocess # To open an editor in a subprocess
 import tempfile # To manage temporary files
 import argparse # For parsing command line options
 import logging # For better debug/troubleshooting
-import getpass # To get the vault password
 
 # Yaml stuff
 from ruamel.yaml import YAML # Duh
@@ -85,7 +84,6 @@ def setup_vault():
 
 # Create constructor functions to translate between encrypted and unencrypted tags when loading yaml
 def constructor_tmp_decrypt(self, node):
-    #vault = setup_vault()
     try:
         decrypted_value = vault.decrypt(node.value).decode('utf-8')
     except:
@@ -99,7 +97,6 @@ def constructor_tmp_decrypt(self, node):
         return TaggedScalar(value=decrypted_value, style='', tag=DECRYPTED_TAG_NAME)
 
 def constructor_tmp_encrypt(self, node):
-    #vault = setup_vault()
     encrypted_value = vault.encrypt(node.value).decode('utf-8')
     return TaggedScalar(value=encrypted_value, style='|', tag="!vault")
 
@@ -113,8 +110,6 @@ def compare_and_update(original_data, reencrypted_data):
 	## Take the new and original data, find each !vault entry, and if it exists in the original data,
 	## decrypt both and compare them. If they are the same, prefer the original data.
     ## Will also ensure that there is a newline after a vaulted variable (for readability)
-
-    #vault = setup_vault()
 
 	# Loop recursively through everything
     if isinstance(original_data, CommentedMap) and isinstance(reencrypted_data, CommentedMap):
@@ -247,7 +242,6 @@ parser.add_argument('--ask-vault-pass', action='store_true',
 args = parser.parse_args()
 
 vault = setup_vault()
-
 
 
 logging.basicConfig(level=args.loglevel, format='%(levelname)s: %(message)s')
