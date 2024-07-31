@@ -35,15 +35,16 @@ If you wish you had `ansible-vault edit` for partially encrypted files, that is 
 
 ## Why you should NOT use this
 
-This is created by a sysadmin, not a programmer. It is very possible that any exceptions thrown here will overwrite your file with junk or empty data.
+This is created by a sysadmin, not a serious programmer. It is very possible that any exceptions thrown here will overwrite your file with junk or empty data.
 So if you don't have your files in a git repo with the ability to revert files, please dont use this yet :)
 
 ## Usage
 
 ```shell
-./vaulti <file1> <file2> ... # If you want it to use standard ansible environment vars
-./vaulti <file1> <file2> --ask-vault-pass # If you want to specify the password adhoc
-./vaulti <file1> -r # Prints the output, doesn't let you edit. Useful for setting up custom git diff, etc.
+./vaulti file1 # If you want it to use standard ansible environment vars for the vault password
+./vaulti file1 file2 # Define multiple files if you wish
+./vaulti file1 --ask-vault-pass # If you want to specify the password on the CLI
+./vaulti file1 -r # Prints the output, doesn't let you edit. Useful for setting up custom git diff, etc.
 ```
 
 You can add or remove the `!ENCRYPTED` tags as you wish, and it will encrypt or decrypt for you.
@@ -58,6 +59,50 @@ export ANSIBLE_VAULT_PASSWORD_FILE=.vault_pass.txt
 # Save and quit, then open it regularly to see what changed
 vim example_encrypted_data.yaml
 ```
+
+## Example
+
+The partial vault-encrypted file looks like this:
+
+```yaml
+enc_variable: !vault |
+  $ANSIBLE_VAULT;1.1;AES256
+  66373364636166306131353930333262303162396534373632346137316437636338333431616...
+
+plain_variable: gonna
+
+list_variable:
+  - !vault |
+    $ANSIBLE_VAULT;1.1;AES256
+    66323661363266353635316639333063333134633831613763333031646566323531393238353...
+
+
+list_of_dicts:
+  - plaintext: you
+    encrypted: !vault |
+      $ANSIBLE_VAULT;1.1;AES256
+      39323233613537376363333139616137653065663334366538643631353333653833666163663...
+
+```
+
+Running `./vaulti myfile.yml` opens your editor like this
+
+```yaml
+enc_variable: !ENCRYPTED Never
+
+plain_variable: gonna
+
+list_variable:
+  - !ENCRYPTED give
+
+list_of_dicts:
+  - plaintext: you
+    encrypted: !ENCRYPTED up
+
+```
+
+Now you can remove the `!ENCRYPTED` tag to decrypt and add new `!ENCRYPT` tags to encrypt, before saving and quitting!
+You can also add new variables, both with and without the tag, and comment whereever the yaml spec lets you.
 
 ## Caveats
 
