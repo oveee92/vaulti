@@ -2,41 +2,6 @@
 
 Utility to edit, create, encrypt and decrypt ansible-vault in-line encrypted variables in yaml files.
 
-## Why this exists
-
-Ansible-vault works fine for encrypting/decrypting/editing whole files, but there are times you don't want to encrypt entire files:
-
-If you use AWX/AAP, having vault-encrypted files is difficult; you either have to
-- include the vault password in whichever container/EE you are running the playbooks (therefore requiring a custom image), or
-- decrypt the file when syncing the inventory (making all your secrets plaintext for those with high enough access in AWX)
-
-If your control repo is getting large, with lots of hostvars and groupvars, and you want to find out where certain variables are defined,
-you won't be able to search vault-encrypted files, since their key is also encrypted.
-
-So you try inline encryption, but using it with `ansible-vault edit <file>` is no longer possible, you have to do something like this:
-
-```shell
-## To encrypt
-ansible-vault encrypt_string # <enter>
-SomePasswordOrSomething # <Ctrl-D>, NOT <enter> unless you need the newline encrypted too
-# Then copy the output into your yaml file, making sure the indentation is still ok
-
-## To edit
-# Just encrypt a new string and replace it
-
-## To decrypt
-ansible -i the/relevant/inventory the-relevant-host -m debug -a "var=TheAnsibleVaultedVariable"
-```
-
-Yikes...
-
-If you wish you had `ansible-vault edit` for partially encrypted files, that is what this utility is trying to do.
-
-## Why you should NOT use this
-
-This is created by a sysadmin, not a serious programmer. It is very possible that any exceptions thrown here will overwrite the partially encrypted yaml file with junk or empty data.
-So if you don't have your files in a git repo with the ability to revert files easily, please dont use this in production yet :)
-
 ## Usage
 
 ```shell
@@ -106,6 +71,41 @@ list_of_dicts:
 Now you can remove the `!ENCRYPTED` tag to decrypt and add new `!ENCRYPT` tags to encrypt, before saving and quitting!
 You can also add new variables, both with and without the tag, and comment whereever the yaml spec lets you.
 Block scalars also work, if you need to include newlines (`|`, `>`, `|-`, etc.)
+
+## Why this exists
+
+Ansible-vault works fine for encrypting/decrypting/editing whole files, but there are times you don't want to encrypt entire files:
+
+If you use AWX/AAP, having vault-encrypted files is difficult; you either have to
+- include the vault password in whichever container/EE you are running the playbooks (therefore requiring a custom image), or
+- decrypt the file when syncing the inventory (making all your secrets plaintext for those with high enough access in AWX)
+
+If your control repo is getting large, with lots of hostvars and groupvars, and you want to find out where certain variables are defined,
+you won't be able to search vault-encrypted files, since their key is also encrypted.
+
+So you try inline encryption, but using it with `ansible-vault edit <file>` is no longer possible, you have to do something like this:
+
+```shell
+## To encrypt
+ansible-vault encrypt_string # <enter>
+SomePasswordOrSomething # <Ctrl-D>, NOT <enter> unless you need the newline encrypted too
+# Then copy the output into your yaml file, making sure the indentation is still ok
+
+## To edit
+# Just encrypt a new string and replace it
+
+## To decrypt
+ansible -i the/relevant/inventory the-relevant-host -m debug -a "var=TheAnsibleVaultedVariable"
+```
+
+Yikes...
+
+If you wish you had `ansible-vault edit` for partially encrypted files, that is what this utility is trying to do.
+
+## Why you should NOT use this
+
+This is created by a sysadmin, not a serious programmer. It is very possible that any exceptions thrown here will overwrite the partially encrypted yaml file with junk or empty data.
+So if you don't have your files in a git repo with the ability to revert files easily, please dont use this in production yet :)
 
 ## Caveats
 
