@@ -26,17 +26,16 @@ SomePasswordOrSomething # <Ctrl-D>, NOT <enter> unless you need the newline encr
 
 ## To decrypt
 ansible -i the/relevant/inventory the-relevant-host -m debug -a "var=TheAnsibleVaultedVariable"
-
 ```
 
-Gross...
+Yikes...
 
 If you wish you had `ansible-vault edit` for partially encrypted files, that is what this utility is trying to do.
 
 ## Why you should NOT use this
 
-This is created by a sysadmin, not a serious programmer. It is very possible that any exceptions thrown here will overwrite your file with junk or empty data.
-So if you don't have your files in a git repo with the ability to revert files, please dont use this yet :)
+This is created by a sysadmin, not a serious programmer. It is very possible that any exceptions thrown here will overwrite the partially encrypted yaml file with junk or empty data.
+So if you don't have your files in a git repo with the ability to revert files easily, please dont use this in production yet :)
 
 ## Usage
 
@@ -54,10 +53,12 @@ If it finds vaulted variables it cannot decrypt, it shows you with a tag like `!
 
 ```shell
 # You can test this by cloning the repo, cd into it and running
+git clone https://github.com/oveee92/vaulti.git && cd vaulti
 export ANSIBLE_VAULT_PASSWORD_FILE=.vault_pass.txt
 ./vaulti example_encrypted_data.yaml
 # Save and quit, then open it regularly to see what changed
 vim example_encrypted_data.yaml
+git diff example_encrypted_data.yaml
 ```
 
 ## Example
@@ -110,12 +111,12 @@ Since it uses the fantastic (yet sparsely documented) `ruamel.yaml`, and the yam
 
 - Indentation for your multiline strings will always end up with a fixed (default 2) spaces relative to the variable it belongs to;
   i.e. not the 10 spaces indented or whatever the default is from the `ansible-vault encrypt_string` output. This is good for consistency, but it means the indentation
-  of the inline-encrypted variables will probably change the first time you use this. If you don't change anything, the value should remain the same though.
+  of the inline-encrypted variables will probably change the first time you use this. If you don't change the decrypted value, it should remain the same though, except for the indent change.
 - Extra whitespaces will be removed whereever it is found (for example `key:  value` -> `key: value`)
 
 Also, there are a few "opinionated" things I've hardcoded, which are relatively easy to comment out or change if you wish it.
 
-- Header (---) and footer (...) will be added automatically to the variable file if it doesn't exist.
+- Header (`---`) and footer (`...`) will be added automatically to the variable file if it doesn't exist.
 - An extra newline is added below the ansible-vault output, for readability.
 - No automatic line breaks for long values.
 
