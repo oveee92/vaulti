@@ -55,7 +55,7 @@ If it finds vaulted variables it cannot decrypt, it shows you with a tag like `!
 ```shell
 # You can test this by cloning the repo, cd into it and running
 git clone https://github.com/oveee92/vaulti.git && cd vaulti
-export ANSIBLE_VAULT_PASSWORD_FILE=.vault_pass.txt
+export ANSIBLE_VAULT_PASSWORD_FILE=.example_vault_pass.txt
 ./vaulti example_encrypted_data.yaml
 # Make some changes to existing variables, create some new ones or remove some tags
 # Save and quit, then open it regularly to see what changed, or just run git diff to see what happened
