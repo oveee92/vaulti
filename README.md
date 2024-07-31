@@ -50,18 +50,17 @@ You can add or remove the `!ENCRYPTED` tags as you wish, and it will encrypt or 
 
 If it finds vaulted variables it cannot decrypt, it shows you with a tag like `!VAULT_INVALID`. It returns unchanged to `!vault` when you exit the editor.
 
+## Example
 
 ```shell
 # You can test this by cloning the repo, cd into it and running
 git clone https://github.com/oveee92/vaulti.git && cd vaulti
 export ANSIBLE_VAULT_PASSWORD_FILE=.vault_pass.txt
 ./vaulti example_encrypted_data.yaml
-# Save and quit, then open it regularly to see what changed
-vim example_encrypted_data.yaml
+# Make some changes to existing variables, create some new ones or remove some tags
+# Save and quit, then open it regularly to see what changed, or just run git diff to see what happened
 git diff example_encrypted_data.yaml
 ```
-
-## Example
 
 The partial vault-encrypted file looks like this:
 
@@ -84,6 +83,7 @@ list_of_dicts:
       $ANSIBLE_VAULT;1.1;AES256
       39323233613537376363333139616137653065663334366538643631353333653833666163663...
 
+# (...)
 ```
 
 Running `./vaulti myfile.yml` opens your editor like this
@@ -100,10 +100,12 @@ list_of_dicts:
   - plaintext: you
     encrypted: !ENCRYPTED up
 
+# (...)
 ```
 
 Now you can remove the `!ENCRYPTED` tag to decrypt and add new `!ENCRYPT` tags to encrypt, before saving and quitting!
 You can also add new variables, both with and without the tag, and comment whereever the yaml spec lets you.
+Block scalars also work, if you need to include newlines (`|`, `>`, `|-`, etc.)
 
 ## Caveats
 
