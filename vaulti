@@ -186,7 +186,7 @@ def ensure_newline(data, key):
 
 
 def main(filenames):
-
+    logger = logging.getLogger("Vaulti")
     for filename in filenames:
 
         # Configure the YAML settings
@@ -264,7 +264,6 @@ def main(filenames):
             os.unlink(temp_filename)
 
 
-logger = logging.getLogger("Vaulti")
 def parse_arguments():
     parser = argparse.ArgumentParser(
         prog="vaulti", description="Helps you with inline encrypted variables"
