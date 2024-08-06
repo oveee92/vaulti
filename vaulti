@@ -75,13 +75,13 @@ INVALID_TAG_NAME = "!VAULT_INVALID"
 ENSURE_NEWLINES_AFTER_VAULTED = True
 
 
-def setup_vault():
+def setup_vault(ask_vault_pass: bool):
 
     loader = DataLoader()
     vault_secret = CLI.setup_vault_secrets(
         loader=loader,
         vault_ids=C.DEFAULT_VAULT_IDENTITY_LIST,
-        ask_vault_pass=args.ask_vault_pass,  # Only prompts if you specify --ask-vault-pass
+        ask_vault_pass=ask_vault_pass,  # Only prompts if you specify --ask-vault-pass
     )
     return VaultLib(vault_secret)
 
