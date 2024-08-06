@@ -89,7 +89,7 @@ def setup_vault():
 
 
 # Create constructor functions to translate between encrypted and unencrypted tags when loading yaml
-def constructor_tmp_decrypt(self, node):
+def constructor_tmp_decrypt(node):
     try:
         decrypted_value = vault.decrypt(node.value).decode("utf-8")
     except:
@@ -103,12 +103,12 @@ def constructor_tmp_decrypt(self, node):
         return TaggedScalar(value=decrypted_value, style="", tag=DECRYPTED_TAG_NAME)
 
 
-def constructor_tmp_encrypt(self, node):
+def constructor_tmp_encrypt(node):
     encrypted_value = vault.encrypt(node.value).decode("utf-8")
     return TaggedScalar(value=encrypted_value, style="|", tag="!vault")
 
 
-def constructor_tmp_invalid(self, node):
+def constructor_tmp_invalid(node):
     # The invalid tag should just be translated directly back to the original tag
     return TaggedScalar(value=node.value, style="|", tag="!vault")
 
