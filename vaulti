@@ -43,20 +43,20 @@ Usage:
 
 """
 
-# Basic stuff
-import sys  # To handle arguments, stdout, etc. for the command line
-import os  # To fetch environment variables
-import subprocess  # To open an editor in a subprocess
-import tempfile  # To manage temporary files
-import argparse  # For parsing command line options
-import logging  # For better debug/troubleshooting
+import sys
+import os
+import subprocess
+import tempfile
+import argparse
+import logging
 
-# Yaml stuff
-from ruamel.yaml import YAML  # Duh
-from ruamel.yaml.constructor import SafeConstructor
-from ruamel.yaml.scalarstring import (
-    LiteralScalarString,
-)  # To display multiline variables nicely
+# To encrypt and decrypt Vault variables
+from ansible.parsing.vault import VaultLib
+# To fetch Vault credentials from standard sources
+from ansible import constants as C
+from ansible.cli import CLI
+from ansible.parsing.dataloader import DataLoader
+from ruamel.yaml import YAML
 from ruamel.yaml.comments import (
     CommentedMap,
     CommentedSeq,
@@ -67,16 +67,6 @@ from ruamel.yaml.tokens import (
 )  # To be able to insert newlines where needed
 from ruamel.yaml.error import StringMark  # To be able to insert newlines where needed
 
-# To encrypt and decrypt Vault variables
-from ansible.parsing.vault import VaultEditor, VaultLib, VaultSecret
-
-# To fetch Vault credentials from standard sources
-from ansible import constants as C
-from ansible.cli import CLI
-from ansible.parsing.dataloader import DataLoader
-
-
-# --------------------------------------------------
 
 # What should the tag look like to indicate that it is actually an encrypted variable?
 DECRYPTED_TAG_NAME = "!ENCRYPTED"
