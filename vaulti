@@ -264,37 +264,38 @@ def main(filenames):
             os.unlink(temp_filename)
 
 
-parser = argparse.ArgumentParser(
-    prog="vaulti", description="Helps you with inline encrypted variables"
-)
-
-parser.add_argument(
-    "-r",
-    "--view",
-    action="store_true",
-    help="Just print the decrypted output, don't open an editor. NOTE: This will print your secrets in plaintext",
-)
-parser.add_argument(
-    "-v",
-    "--verbose",
-    action="store_const",
-    dest="loglevel",
-    const=logging.INFO,
-    help="Print more details, for debugging. NOTE: This will print your secrets in plaintext",
-)
-parser.add_argument(
-    "files", nargs="+", help="Specify one or more files that the script should open"
-)
-parser.add_argument(
-    "--ask-vault-pass", action="store_true", help="Specify the argument yourself"
-)
-
-args = parser.parse_args()
-
-vault = setup_vault()
-
-
-logging.basicConfig(level=args.loglevel, format="%(levelname)s: %(message)s")
 logger = logging.getLogger("Vaulti")
+def parse_arguments():
+    parser = argparse.ArgumentParser(
+        prog="vaulti", description="Helps you with inline encrypted variables"
+    )
 
-main(args.files)
+    parser.add_argument(
+        "-r",
+        "--view",
+        action="store_true",
+        help="Just print the decrypted output, don't open an editor. NOTE: This will print your secrets in plaintext",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_const",
+        dest="loglevel",
+        const=logging.INFO,
+        help="Print more details, for debugging. NOTE: This will print your secrets in plaintext",
+    )
+    parser.add_argument(
+        "files", nargs="+", help="Specify one or more files that the script should open"
+    )
+    parser.add_argument(
+        "--ask-vault-pass", action="store_true", help="Specify the argument yourself"
+    )
+
+    return parser.parse_args()
+
+
+if __name__ == "__main__":
+    args = parse_arguments()
+    vault = setup_vault(ask_vault_pass=args.ask_vault_pass)
+    logging.basicConfig(level=args.loglevel, format="%(levelname)s: %(message)s")
+    main(args.files)
