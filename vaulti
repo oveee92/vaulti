@@ -207,14 +207,14 @@ def main(filenames):
 
         # Read the original file without custom constructors (for comparing later) (Deepcopy doesn't seem to work, so just
         # load it before defining custom constructors
-        with open(filename, "r") as file:
+        with open(filename, "r", encoding="utf-8") as file:
             original_data = yaml.load(file)
 
         # Register the constructor to let the yaml loader do the decrypting for you
         yaml.constructor.add_constructor("!vault", constructor_tmp_decrypt)
 
         # Load the yaml file into memory (will now auto-decrypt vault because of the constructors)
-        with open(filename, "r") as file:
+        with open(filename, "r", encoding="utf-8") as file:
             decrypted_data = yaml.load(file)
 
         # If the script is just run for viewing, dump the content to stdout and exit
@@ -247,7 +247,7 @@ def main(filenames):
             subprocess.call(editor)
 
             # After the editor is closed, reload the yaml from the tmp-file (will auto-reencrypt because of the constructors)
-            with open(temp_filename, "r") as file:
+            with open(temp_filename, "r", encoding="utf-8") as file:
                 edited_data = yaml.load(file)
 
             # Don't do anything if the file hasn't been changed since its creation
@@ -259,7 +259,7 @@ def main(filenames):
                 final_data = compare_and_update(original_data, edited_data)
 
                 # Then write the final data back to the original file
-                with open(filename, "w") as file:
+                with open(filename, "w", encoding="utf-8") as file:
                     yaml.dump(final_data, file)
 
         finally:
