@@ -75,10 +75,7 @@ ENSURE_NEWLINES_AFTER_VAULTED = True
 
 vault = None
 
-# --------------------------------------------------
 
-
-# Vault setup
 def setup_vault():
 
     loader = DataLoader()
