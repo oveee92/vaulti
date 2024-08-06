@@ -85,8 +85,7 @@ def setup_vault():
         vault_ids=C.DEFAULT_VAULT_IDENTITY_LIST,
         ask_vault_pass=args.ask_vault_pass,  # Only prompts if you specify --ask-vault-pass
     )
-    vault = VaultLib(vault_secret)
-    return vault
+    return VaultLib(vault_secret)
 
 
 # Create constructor functions to translate between encrypted and unencrypted tags when loading yaml
