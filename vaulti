@@ -241,7 +241,7 @@ def main(filenames):
             # Find the editor to open. Needs to handle if the EDITOR variable contains parameters, e.g. "vim -N ..."
             editor = os.environ.get("EDITOR", "vim").split()
             editor.append(temp_filename)  # Add the filename at the end of the command
-            logger.info("Opening editor with params: " + str(editor))
+            logger.info("Opening editor with params: %s", str(editor))
             subprocess.call(editor)
 
             # After the editor is closed, reload the yaml from the tmp-file (will auto-reencrypt because of the constructors)
