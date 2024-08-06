@@ -1,5 +1,48 @@
 #!/usr/bin/env python3
 
+"""
+Utility to edit yaml files with inline ansible vault variables
+
+This is a utility to make ansible-vault inline encrypted variables a billion
+times easier to work with. Useful if you want to store the variables safely in
+AWX, or want to avoid encrypting entire files because you want to be able to
+search for all of your variables, but you don't like the way you currently have
+to read and write the variables.
+
+It opens an editor based on your EDITOR environment variable, where the
+variables have been decrypted. This is indicated by a tag, which is set to
+"!ENCRYPTED" by default.
+
+If it cannot decrypt the variable for any reason, it will be indicated with a
+"!VAULT_INVALID" tag, which will be translated back to its original value when
+you close the editor. It will still try to reencrypt.
+
+From here, you can add or remove the tags from whichever variables you want,
+and when you save and quit, it will reencrypt and decrypt things for you as you
+specified.
+
+Since ruamel.yaml does a lot of stuff in the background, there are some things
+that will be changed automatically:
+- Indentation for your multiline strings will always end up with a fixed
+  (default 2) spaces relative to the variable it belongs to; i.e. not the 10
+  spaces indented or whatever the default is from the `ansible-vault
+  encrypt_string` output.
+- Header (---) and footer (...) will be added automatically to the variable
+  file if it doesn't exist
+- Extra whitespaces will be removed (for example `key:  value` -> `key: value`.)
+- An extra newline is added below the ansible-vault output, for readability.
+
+This script is developed by someone who just wants it to work, so feel free to
+change it if you want to make it work better.
+
+Usage:
+
+./vaulti <file1> <file2> ...
+./vaulti <file1> <file2> --ask-vault-pass
+./vaulti -h
+
+"""
+
 # Basic stuff
 import sys  # To handle arguments, stdout, etc. for the command line
 import os  # To fetch environment variables
@@ -32,39 +75,6 @@ from ansible import constants as C
 from ansible.cli import CLI
 from ansible.parsing.dataloader import DataLoader
 
-"""
-
-Ansible-vault Inline utility
-
-This is a utility to make ansible-vault inline encrypted variables a billion times easier to work with.
-Useful if you want to store the variables safely in AWX, or want to avoid encrypting entire files because you want to
-be able to search for all of your variables, but you don't like the way you currently have to read and write the variables.
-
-It opens an editor based on your EDITOR environment variable, where the variables have been decrypted.
-This is indicated by a tag, which is set to "!ENCRYPTED" by default.
-
-If it cannot decrypt the variable for any reason, it will be indicated with a "!VAULT_INVALID" tag, which will be translated
-back to its original value when you close the editor. It will still try to reencrypt
-
-From here, you can add or remove the tags from whichever variables you want, and when you save and quit, it will
-reencrypt and decrypt things for you as you specified.
-
-Since ruamel.yaml does a lot of stuff in the background, there are some things that will be changed automatically:
-- Indentation for your multiline strings will always end up with a fixed (default 2) spaces relative to the variable it belongs to;
-  i.e. not the 10 spaces indented or whatever the default is from the `ansible-vault encrypt_string` output.
-- Header (---) and footer (...) will be added automatically to the variable file if it doesn't exist
-- Extra whitespaces will be removed (for example `key:  value` -> `key: value`.)
-- An extra newline is added below the ansible-vault output, for readability.
-
-This script is developed by someone who just wants it to work, so feel free to change it if you want to make it work better.
-
-Usage:
-
-./vaulti <file1> <file2> ...
-./vaulti <file1> <file2> --ask-vault-pass
-./vaulti -h
-
-"""
 
 # --------------------------------------------------
 
