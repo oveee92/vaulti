@@ -99,8 +99,7 @@ def constructor_tmp_decrypt(node):
     # Make it easier to read decrypted variables with newlines in it
     if "\n" in decrypted_value:
         return TaggedScalar(value=decrypted_value, style="|", tag=DECRYPTED_TAG_NAME)
-    else:
-        return TaggedScalar(value=decrypted_value, style="", tag=DECRYPTED_TAG_NAME)
+    return TaggedScalar(value=decrypted_value, style="", tag=DECRYPTED_TAG_NAME)
 
 
 def constructor_tmp_encrypt(node):
