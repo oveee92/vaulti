@@ -92,7 +92,8 @@ def constructor_tmp_decrypt(node):
     try:
         decrypted_value = vault.decrypt(node.value).decode("utf-8")
     except:
-        # If the value cannot be decrypted for some reason, just use the original value and add an invalid tag
+        # If the value cannot be decrypted for some reason, just use the
+        # original value and add an invalid tag
         return TaggedScalar(value=node.value, style="|", tag=INVALID_TAG_NAME)
 
     # Make it easier to read decrypted variables with newlines in it
@@ -174,7 +175,8 @@ def ensure_newline(data, key):
     # Ensure that there is at least one newline after the vaulted value, for readability
     if comment_nextline is None:
         data.ca.items[key] = [None, None, None, None]
-        # All this just to make a newline... not 100% sure how this StringMark stuff works
+        # All this just to make a newline... not 100% sure how this StringMark
+        # stuff works
         newline_token = CommentToken(
             "\n",
             start_mark=StringMark(
@@ -205,15 +207,17 @@ def main(filenames):
             mapping=2, sequence=4, offset=2
         )  # Ensure list items are indented, not inline with the parent variable
 
-        # Read the original file without custom constructors (for comparing later) (Deepcopy doesn't seem to work, so just
-        # load it before defining custom constructors
+        # Read the original file without custom constructors (for comparing
+        # later) (Deepcopy doesn't seem to work, so just load it before
+        # defining custom constructors
         with open(filename, "r", encoding="utf-8") as file:
             original_data = yaml.load(file)
 
         # Register the constructor to let the yaml loader do the decrypting for you
         yaml.constructor.add_constructor("!vault", constructor_tmp_decrypt)
 
-        # Load the yaml file into memory (will now auto-decrypt vault because of the constructors)
+        # Load the yaml file into memory (will now auto-decrypt vault because
+        # of the constructors)
         with open(filename, "r", encoding="utf-8") as file:
             decrypted_data = yaml.load(file)
 
@@ -222,11 +226,13 @@ def main(filenames):
             yaml.dump(decrypted_data, sys.stdout)
             return
 
-        # Run the rest inside a try-finally block to make sure the decrypted tmp-file is deleted afterwards
+        # Run the rest inside a try-finally block to make sure the decrypted
+        # tmp-file is deleted afterwards
         try:
 
-            # Register the constructor to let the yaml loader do the reencrypting for you
-            # Adding it this late to avoid encryption step before the editor opens
+            # Register the constructor to let the yaml loader do the
+            # reencrypting for you Adding it this late to avoid encryption step
+            # before the editor opens
             yaml.constructor.add_constructor(
                 DECRYPTED_TAG_NAME, constructor_tmp_encrypt
             )
@@ -240,13 +246,15 @@ def main(filenames):
                 temp_filename = temp_file.name
                 created_time = os.stat(temp_file.name).st_ctime
 
-            # Find the editor to open. Needs to handle if the EDITOR variable contains parameters, e.g. "vim -N ..."
+            # Find the editor to open. Needs to handle if the EDITOR variable
+            # contains parameters, e.g. "vim -N ..."
             editor = os.environ.get("EDITOR", "vim").split()
             editor.append(temp_filename)  # Add the filename at the end of the command
             logger.info("Opening editor with params: %s", str(editor))
             subprocess.call(editor)
 
-            # After the editor is closed, reload the yaml from the tmp-file (will auto-reencrypt because of the constructors)
+            # After the editor is closed, reload the yaml from the tmp-file
+            # (will auto-reencrypt because of the constructors)
             with open(temp_filename, "r", encoding="utf-8") as file:
                 edited_data = yaml.load(file)
 
@@ -254,8 +262,10 @@ def main(filenames):
             changed_time = os.stat(temp_file.name).st_ctime
             if created_time != changed_time:
 
-                # Loop through all the values of the new data, making sure that any encrypted data unchanged from the original
-                # still uses the original vault encrypted data. This makes your git diffs much cleaner.
+                # Loop through all the values of the new data, making sure that
+                # any encrypted data unchanged from the original still uses the
+                # original vault encrypted data. This makes your git diffs much
+                # cleaner.
                 final_data = compare_and_update(original_data, edited_data)
 
                 # Then write the final data back to the original file
@@ -275,7 +285,10 @@ def parse_arguments():
         "-r",
         "--view",
         action="store_true",
-        help="Just print the decrypted output, don't open an editor. NOTE: This will print your secrets in plaintext",
+        help=(
+            "Just print the decrypted output, don't open an editor."
+            "NOTE: This will print your secrets in plaintext"
+        ),
     )
     parser.add_argument(
         "-v",
@@ -283,7 +296,10 @@ def parse_arguments():
         action="store_const",
         dest="loglevel",
         const=logging.INFO,
-        help="Print more details, for debugging. NOTE: This will print your secrets in plaintext",
+        help=(
+            "Print more details, for debugging."
+            "NOTE: This will print your secrets in plaintext"
+        ),
     )
     parser.add_argument(
         "files", nargs="+", help="Specify one or more files that the script should open"
