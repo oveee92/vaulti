@@ -86,8 +86,9 @@ def setup_vault(ask_vault_pass: bool):
     return VaultLib(vault_secret)
 
 
-# Create constructor functions to translate between encrypted and unencrypted tags when loading yaml
 def constructor_tmp_decrypt(node):
+    """Create constructor functions to translate between encrypted and
+    unencrypted tags when loading yaml"""
     try:
         decrypted_value = vault.decrypt(node.value).decode("utf-8")
     except:
@@ -112,9 +113,10 @@ def constructor_tmp_invalid(node):
 
 
 def compare_and_update(original_data, reencrypted_data):
-    ## Take the new and original data, find each !vault entry, and if it exists in the original data,
-    ## decrypt both and compare them. If they are the same, prefer the original data.
-    ## Will also ensure that there is a newline after a vaulted variable (for readability)
+    """Take the new and original data, find each !vault entry, and if it exists
+    in the original data, decrypt both and compare them. If they are the same,
+    prefer the original data. Will also ensure that there is a newline after a
+    vaulted variable (for readability)"""
 
     # Loop recursively through everything
     if isinstance(original_data, CommentedMap) and isinstance(
