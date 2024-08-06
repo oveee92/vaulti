@@ -52,6 +52,7 @@ import logging
 
 # To encrypt and decrypt Vault variables
 from ansible.parsing.vault import VaultLib
+
 # To fetch Vault credentials from standard sources
 from ansible import constants as C
 from ansible.cli import CLI
