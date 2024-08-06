@@ -188,7 +188,7 @@ def ensure_newline(data, key):
         data.ca.items[key][2] = newline_token
 
 
-def main(filenames):
+def main(filenames, view_only: bool):
     logger = logging.getLogger("Vaulti")
     for filename in filenames:
 
@@ -221,7 +221,7 @@ def main(filenames):
             decrypted_data = yaml.load(file)
 
         # If the script is just run for viewing, dump the content to stdout and exit
-        if args.view:
+        if view_only:
             yaml.dump(decrypted_data, sys.stdout)
             return
 
@@ -314,4 +314,4 @@ if __name__ == "__main__":
     args = parse_arguments()
     vault = setup_vault(ask_vault_pass=args.ask_vault_pass)
     logging.basicConfig(level=args.loglevel, format="%(levelname)s: %(message)s")
-    main(args.files)
+    main(args.files, view_only=args.view)
