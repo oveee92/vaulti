@@ -15,7 +15,12 @@
       devShells.${system}.default = pkgs.mkShell {
         buildInputs = [
           pkgs.poetry
-          pkgs.python312
+          (pkgs.python312.withPackages (python-pkgs: [
+            python-pkgs.python-lsp-server
+            python-pkgs.black
+            python-pkgs.mypy
+            python-pkgs.pylint
+          ]))
         ];
       };
     };
