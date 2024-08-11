@@ -194,17 +194,14 @@ def main(filenames, vault: VaultLib, view_only: bool):
 
         # Configure the YAML settings
         yaml = YAML()
-        yaml.preserve_quotes = (
-            True  # Don't strip out unneccesary quotes around scalar variables
-        )
-        yaml.width = float(
-            "inf"
-        )  # Prevent the yaml dumper from line-breaking the longer variables
+        # Don't strip out unneccesary quotes around scalar variables
+        yaml.preserve_quotes = True
+        # Prevent the yaml dumper from line-breaking the longer variables
+        yaml.width = float("inf")
         yaml.explicit_start = True  # Add --- at the start of the file
         yaml.explicit_end = True  # Add ... at the end of the file
-        yaml.indent(
-            mapping=2, sequence=4, offset=2
-        )  # Ensure list items are indented, not inline with the parent variable
+        # Ensure list items are indented, not inline with the parent variable
+        yaml.indent(mapping=2, sequence=4, offset=2)
 
         # Read the original file without custom constructors (for comparing
         # later) (Deepcopy doesn't seem to work, so just load it before
