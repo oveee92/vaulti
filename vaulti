@@ -119,6 +119,10 @@ def is_commented_seq(data) -> bool:
     isinstance(data, CommentedSeq)
 
 
+def is_tagged_scalar(data) -> bool:
+    isinstance(data, TaggedScalar)
+
+
 def compare_and_update(original_data, reencrypted_data, vault: VaultLib):
     """Take the new and original data, find each !vault entry, and if it exists
     in the original data, decrypt both and compare them. If they are the same,
@@ -130,7 +134,7 @@ def compare_and_update(original_data, reencrypted_data, vault: VaultLib):
         for key in reencrypted_data:
             if ENSURE_NEWLINES_AFTER_VAULTED:
                 if (
-                    isinstance(reencrypted_data[key], TaggedScalar)
+                    is_tagged_scalar(reencrypted_data[key])
                     and reencrypted_data[key].tag.value == "!vault"
                 ):
                     ensure_newline(reencrypted_data, key)
@@ -149,7 +153,7 @@ def compare_and_update(original_data, reencrypted_data, vault: VaultLib):
         for i in range(len(reencrypted_data)):
             if ENSURE_NEWLINES_AFTER_VAULTED:
                 if (
-                    isinstance(reencrypted_data[i], TaggedScalar)
+                    is_tagged_scalar(reencrypted_data[i])
                     and reencrypted_data[i].tag.value == "!vault"
                 ):
                     ensure_newline(reencrypted_data, i)
@@ -164,9 +168,9 @@ def compare_and_update(original_data, reencrypted_data, vault: VaultLib):
                 reencrypted_data[i] = reencrypted_data[i]
 
     elif (
-        isinstance(original_data, TaggedScalar)
+        is_tagged_scalar(original_data)
         and original_data.tag.value == "!vault"
-        and isinstance(reencrypted_data, TaggedScalar)
+        and is_tagged_scalar(reencrypted_data)
         and reencrypted_data.tag.value == "!vault"
     ):
         if vault.decrypt(original_data.value) == vault.decrypt(reencrypted_data.value):
