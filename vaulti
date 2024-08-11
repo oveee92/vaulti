@@ -86,7 +86,7 @@ def setup_vault(ask_vault_pass: bool):
     return VaultLib(vault_secret)
 
 
-def constructor_tmp_decrypt(node):
+def constructor_tmp_decrypt(node, vault: VaultLib):
     """Create constructor functions to translate between encrypted and
     unencrypted tags when loading yaml"""
     try:
@@ -102,7 +102,7 @@ def constructor_tmp_decrypt(node):
     return TaggedScalar(value=decrypted_value, style="", tag=DECRYPTED_TAG_NAME)
 
 
-def constructor_tmp_encrypt(node):
+def constructor_tmp_encrypt(node, vault: VaultLib):
     encrypted_value = vault.encrypt(node.value).decode("utf-8")
     return TaggedScalar(value=encrypted_value, style="|", tag="!vault")
 
@@ -112,7 +112,7 @@ def constructor_tmp_invalid(node):
     return TaggedScalar(value=node.value, style="|", tag="!vault")
 
 
-def compare_and_update(original_data, reencrypted_data):
+def compare_and_update(original_data, reencrypted_data, vault: VaultLib):
     """Take the new and original data, find each !vault entry, and if it exists
     in the original data, decrypt both and compare them. If they are the same,
     prefer the original data. Will also ensure that there is a newline after a
@@ -151,7 +151,7 @@ def compare_and_update(original_data, reencrypted_data):
             # If ansible vault fails, use the new data instead of crashing
             try:
                 reencrypted_data[i] = compare_and_update(
-                    original_data[i], reencrypted_data[i]
+                    original_data[i], reencrypted_data[i], vault
                 )
             except:
                 reencrypted_data[i] = reencrypted_data[i]
@@ -188,7 +188,7 @@ def ensure_newline(data, key):
         data.ca.items[key][2] = newline_token
 
 
-def main(filenames, view_only: bool):
+def main(filenames, vault: VaultLib, view_only: bool):
     logger = logging.getLogger("Vaulti")
     for filename in filenames:
 
@@ -265,7 +265,7 @@ def main(filenames, view_only: bool):
                 # any encrypted data unchanged from the original still uses the
                 # original vault encrypted data. This makes your git diffs much
                 # cleaner.
-                final_data = compare_and_update(original_data, edited_data)
+                final_data = compare_and_update(original_data, edited_data, vault)
 
                 # Then write the final data back to the original file
                 with open(filename, "w", encoding="utf-8") as file:
@@ -312,6 +312,6 @@ def parse_arguments():
 
 if __name__ == "__main__":
     args = parse_arguments()
-    vault = setup_vault(ask_vault_pass=args.ask_vault_pass)
+    vault_instance = setup_vault(ask_vault_pass=args.ask_vault_pass)
     logging.basicConfig(level=args.loglevel, format="%(levelname)s: %(message)s")
-    main(args.files, view_only=args.view)
+    main(args.files, vault=vault_instance, view_only=args.view)
