@@ -76,7 +76,6 @@ ENSURE_NEWLINES_AFTER_VAULTED = True
 
 
 def setup_vault(ask_vault_pass: bool):
-
     loader = DataLoader()
     vault_secret = CLI.setup_vault_secrets(
         loader=loader,
@@ -90,7 +89,7 @@ def constructor_tmp_decrypt(node, vault: VaultLib):
     """Create constructor functions to translate between encrypted and
     unencrypted tags when loading yaml"""
     try:
-        decrypted_value = vault.decrypt(node.value).decode("utf-8")
+        decrypted_value = vault.decrypt(vaulttext=node.value).decode("utf-8")
     except:
         # If the value cannot be decrypted for some reason, just use the
         # original value and add an invalid tag
@@ -103,7 +102,7 @@ def constructor_tmp_decrypt(node, vault: VaultLib):
 
 
 def constructor_tmp_encrypt(node, vault: VaultLib):
-    encrypted_value = vault.encrypt(node.value).decode("utf-8")
+    encrypted_value = vault.encrypt(vaulttext=node.value).decode("utf-8")
     return TaggedScalar(value=encrypted_value, style="|", tag="!vault")
 
 
@@ -133,7 +132,9 @@ def compare_and_update(original_data, reencrypted_data, vault: VaultLib):
                 # If ansible vault fails, use the new data instead of crashing
                 try:
                     reencrypted_data[key] = compare_and_update(
-                        original_data[key], reencrypted_data[key]
+                        original_data=original_data[key],
+                        reencrypted_data=reencrypted_data[key],
+                        vault=vault,
                     )
                 except:
                     reencrypted_data[key] = reencrypted_data[key]
@@ -151,7 +152,9 @@ def compare_and_update(original_data, reencrypted_data, vault: VaultLib):
             # If ansible vault fails, use the new data instead of crashing
             try:
                 reencrypted_data[i] = compare_and_update(
-                    original_data[i], reencrypted_data[i], vault
+                    original_data=original_data[i],
+                    reencrypted_data=reencrypted_data[i],
+                    vault=vault,
                 )
             except:
                 reencrypted_data[i] = reencrypted_data[i]
