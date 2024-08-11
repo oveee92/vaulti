@@ -115,6 +115,10 @@ def is_commented_map(data) -> bool:
     isinstance(data, CommentedMap)
 
 
+def is_commented_seq(data) -> bool:
+    isinstance(data, CommentedSeq)
+
+
 def compare_and_update(original_data, reencrypted_data, vault: VaultLib):
     """Take the new and original data, find each !vault entry, and if it exists
     in the original data, decrypt both and compare them. If they are the same,
@@ -141,9 +145,7 @@ def compare_and_update(original_data, reencrypted_data, vault: VaultLib):
                 except:
                     reencrypted_data[key] = reencrypted_data[key]
 
-    elif isinstance(original_data, CommentedSeq) and isinstance(
-        reencrypted_data, CommentedSeq
-    ):
+    elif is_commented_seq(original_data) and is_commented_seq(reencrypted_data):
         for i in range(len(reencrypted_data)):
             if ENSURE_NEWLINES_AFTER_VAULTED:
                 if (
