@@ -111,6 +111,10 @@ def constructor_tmp_invalid(node):
     return TaggedScalar(value=node.value, style="|", tag="!vault")
 
 
+def is_commented_map(data) -> bool:
+    isinstance(data, CommentedMap)
+
+
 def compare_and_update(original_data, reencrypted_data, vault: VaultLib):
     """Take the new and original data, find each !vault entry, and if it exists
     in the original data, decrypt both and compare them. If they are the same,
@@ -118,9 +122,7 @@ def compare_and_update(original_data, reencrypted_data, vault: VaultLib):
     vaulted variable (for readability)"""
 
     # Loop recursively through everything
-    if isinstance(original_data, CommentedMap) and isinstance(
-        reencrypted_data, CommentedMap
-    ):
+    if is_commented_map(original_data) and is_commented_map(reencrypted_data):
         for key in reencrypted_data:
             if ENSURE_NEWLINES_AFTER_VAULTED:
                 if (
