@@ -216,6 +216,13 @@ def setup_yaml() -> YAML:
     return yaml
 
 
+def read_encrypted_yaml_file(file: Path) -> Any:
+    yaml = setup_yaml()
+    yaml.constructor.add_constructor("!vault", constructor_tmp_decrypt)
+    with open(file, "r", encoding="utf-8") as file_to_decrypt:
+        return yaml.load(file_to_decrypt)
+
+
 def read_yaml_file(file: Path) -> Any:
     yaml = setup_yaml()
     with open(file, "r", encoding="utf-8") as file_to_read:
@@ -229,14 +236,11 @@ def main(filenames, vault: VaultLib, view_only: bool):
         # Read the original file without custom constructors (for comparing
         # later) (Deepcopy doesn't seem to work, so just load it before
         # defining custom constructors
-        # Register the constructor to let the yaml loader do the decrypting for you
-        yaml.constructor.add_constructor("!vault", constructor_tmp_decrypt)
         original_data = read_yaml_file(filename)
 
         # Load the yaml file into memory (will now auto-decrypt vault because
         # of the constructors)
-        with open(filename, "r", encoding="utf-8") as file:
-            decrypted_data = yaml.load(file)
+        decrypted_data = read_encrypted_yaml_file(filename)
 
         # If the script is just run for viewing, dump the content to stdout and exit
         if view_only:
