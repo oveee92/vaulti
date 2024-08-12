@@ -17,6 +17,9 @@
           pkgs.poetry
           pkgs.python312
         ];
+        env = {
+          ANSIBLE_VAULT_PASSWORD_FILE = ".example_vault_pass.txt";
+        };
       };
     };
 }
