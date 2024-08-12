@@ -229,6 +229,12 @@ def read_yaml_file(file: Path) -> Any:
         return yaml.load(file_to_read)
 
 
+def display_yaml_data_and_exit(yaml_data):
+    yaml = setup_yaml()
+    yaml.dump(data=yaml_data, stream=sys.stdout)
+    sys.exit(0)
+
+
 def main(filenames, vault: VaultLib, view_only: bool):
     logger = logging.getLogger("Vaulti")
     yaml = setup_yaml()
@@ -242,10 +248,8 @@ def main(filenames, vault: VaultLib, view_only: bool):
         # of the constructors)
         decrypted_data = read_encrypted_yaml_file(filename)
 
-        # If the script is just run for viewing, dump the content to stdout and exit
         if view_only:
-            yaml.dump(decrypted_data, sys.stdout)
-            return
+            display_yaml_data_and_exit(decrypted_data)
 
         # Run the rest inside a try-finally block to make sure the decrypted
         # tmp-file is deleted afterwards
