@@ -72,10 +72,10 @@ from ruamel.yaml.tokens import (
 from ruamel.yaml.error import StringMark  # To be able to insert newlines where needed
 
 
-# What should the tag look like to indicate that it is actually an encrypted variable?
 DECRYPTED_TAG_NAME = "!ENCRYPTED"
-INVALID_TAG_NAME = "!VAULT_INVALID"
 ENSURE_NEWLINES_AFTER_VAULTED = True
+INVALID_TAG_NAME = "!VAULT_INVALID"
+VAULT = None
 
 
 def setup_vault(ask_vault_pass: bool):
@@ -88,11 +88,14 @@ def setup_vault(ask_vault_pass: bool):
     return VaultLib(vault_secret)
 
 
-def constructor_tmp_decrypt(node, vault: VaultLib):
-    """Create constructor functions to translate between encrypted and
-    unencrypted tags when loading yaml"""
+def constructor_tmp_decrypt(_, node):
+    """Constructor to translate between encrypted and unencrypted tags when
+    loading yaml
+
+    Gets passed self as an argument from YAML.
+    """
     try:
-        decrypted_value = vault.decrypt(vaulttext=node.value).decode("utf-8")
+        decrypted_value = VAULT.decrypt(vaulttext=node.value).decode("utf-8")
     except:
         # If the value cannot be decrypted for some reason, just use the
         # original value and add an invalid tag
@@ -104,8 +107,12 @@ def constructor_tmp_decrypt(node, vault: VaultLib):
     return TaggedScalar(value=decrypted_value, style="", tag=DECRYPTED_TAG_NAME)
 
 
-def constructor_tmp_encrypt(node, vault: VaultLib):
-    encrypted_value = vault.encrypt(vaulttext=node.value).decode("utf-8")
+def constructor_tmp_encrypt(_, node):
+    """Constructor to encrypt YAML.
+
+    Gets passed self as an argument from YAML.
+    """
+    encrypted_value = VAULT.encrypt(plaintext=node.value).decode("utf-8")
     return TaggedScalar(value=encrypted_value, style="|", tag="!vault")
 
 
@@ -126,7 +133,7 @@ def is_tagged_scalar(data) -> bool:
     isinstance(data, TaggedScalar)
 
 
-def compare_and_update(original_data, reencrypted_data, vault: VaultLib):
+def compare_and_update(original_data, reencrypted_data):
     """Take the new and original data, find each !vault entry, and if it exists
     in the original data, decrypt both and compare them. If they are the same,
     prefer the original data. Will also ensure that there is a newline after a
@@ -147,7 +154,6 @@ def compare_and_update(original_data, reencrypted_data, vault: VaultLib):
                     reencrypted_data[key] = compare_and_update(
                         original_data=original_data[key],
                         reencrypted_data=reencrypted_data[key],
-                        vault=vault,
                     )
                 except:
                     reencrypted_data[key] = reencrypted_data[key]
@@ -165,7 +171,6 @@ def compare_and_update(original_data, reencrypted_data, vault: VaultLib):
                 reencrypted_data[i] = compare_and_update(
                     original_data=original_data[i],
                     reencrypted_data=reencrypted_data[i],
-                    vault=vault,
                 )
             except:
                 reencrypted_data[i] = reencrypted_data[i]
@@ -176,7 +181,7 @@ def compare_and_update(original_data, reencrypted_data, vault: VaultLib):
         and is_tagged_scalar(reencrypted_data)
         and reencrypted_data.tag.value == "!vault"
     ):
-        if vault.decrypt(original_data.value) == vault.decrypt(reencrypted_data.value):
+        if VAULT.decrypt(original_data.value) == VAULT.decrypt(reencrypted_data.value):
             return original_data
 
     return reencrypted_data
@@ -235,7 +240,7 @@ def display_yaml_data_and_exit(yaml_data):
     sys.exit(0)
 
 
-def main(filenames, vault: VaultLib, view_only: bool):
+def main(filenames, view_only: bool):
     logger = logging.getLogger("Vaulti")
     yaml = setup_yaml()
     for filename in filenames:
@@ -291,7 +296,7 @@ def main(filenames, vault: VaultLib, view_only: bool):
                 # any encrypted data unchanged from the original still uses the
                 # original vault encrypted data. This makes your git diffs much
                 # cleaner.
-                final_data = compare_and_update(original_data, edited_data, vault)
+                final_data = compare_and_update(original_data, edited_data)
 
                 # Then write the final data back to the original file
                 with open(filename, "w", encoding="utf-8") as file:
@@ -338,6 +343,6 @@ def parse_arguments():
 
 if __name__ == "__main__":
     args = parse_arguments()
-    vault_instance = setup_vault(ask_vault_pass=args.ask_vault_pass)
+    VAULT = setup_vault(ask_vault_pass=args.ask_vault_pass)
     logging.basicConfig(level=args.loglevel, format="%(levelname)s: %(message)s")
-    main(args.files, vault=vault_instance, view_only=args.view)
+    main(args.files, view_only=args.view)
