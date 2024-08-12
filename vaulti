@@ -199,21 +199,24 @@ def ensure_newline(data, key):
         data.ca.items[key][2] = newline_token
 
 
+def setup_yaml() -> YAML:
+    yaml = YAML()
+    # Don't strip out unneccesary quotes around scalar variables
+    yaml.preserve_quotes = True
+    # Prevent the yaml dumper from line-breaking the longer variables
+    yaml.width = float("inf")
+    yaml.explicit_start = True  # Add --- at the start of the file
+    yaml.explicit_end = True  # Add ... at the end of the file
+    # Ensure list items are indented, not inline with the parent variable
+    yaml.indent(mapping=2, sequence=4, offset=2)
+    # Register the constructor to let the yaml loader do the decrypting for you
+    return yaml
+
+
 def main(filenames, vault: VaultLib, view_only: bool):
     logger = logging.getLogger("Vaulti")
+    yaml = setup_yaml()
     for filename in filenames:
-
-        # Configure the YAML settings
-        yaml = YAML()
-        # Don't strip out unneccesary quotes around scalar variables
-        yaml.preserve_quotes = True
-        # Prevent the yaml dumper from line-breaking the longer variables
-        yaml.width = float("inf")
-        yaml.explicit_start = True  # Add --- at the start of the file
-        yaml.explicit_end = True  # Add ... at the end of the file
-        # Ensure list items are indented, not inline with the parent variable
-        yaml.indent(mapping=2, sequence=4, offset=2)
-
         # Read the original file without custom constructors (for comparing
         # later) (Deepcopy doesn't seem to work, so just load it before
         # defining custom constructors
