@@ -240,8 +240,22 @@ def display_yaml_data_and_exit(yaml_data):
     sys.exit(0)
 
 
-def main(filenames, view_only: bool):
+def open_file_in_default_editor(file: Path):
+    """Get the default editor and open the provided file
+
+    Ignores additional parameters provided to the editor.
+    """
     logger = logging.getLogger("Vaulti")
+    try:
+        editor = os.environ["VISUAL"].split()
+    except KeyError:
+        editor = os.environ.get("EDITOR", "nano").split()
+    editor.append(file)  # Add the filename at the end of the command
+    logger.info("Opening editor with params: %s", str(editor))
+    subprocess.call(editor)
+
+
+def main(filenames, view_only: bool):
     yaml = setup_yaml()
     for filename in filenames:
         # Read the original file without custom constructors (for comparing
@@ -276,13 +290,7 @@ def main(filenames, view_only: bool):
                 temp_filename = temp_file.name
                 created_time = os.stat(temp_file.name).st_ctime
 
-            # Find the editor to open. Needs to handle if the EDITOR variable
-            # contains parameters, e.g. "vim -N ..."
-            editor = os.environ.get("EDITOR", "vim").split()
-            editor.append(temp_filename)  # Add the filename at the end of the command
-            logger.info("Opening editor with params: %s", str(editor))
-            subprocess.call(editor)
-
+            open_file_in_default_editor(temp_filename)
             # After the editor is closed, reload the yaml from the tmp-file
             # (will auto-reencrypt because of the constructors)
             with open(temp_filename, "r", encoding="utf-8") as file:
