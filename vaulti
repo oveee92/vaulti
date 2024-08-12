@@ -50,6 +50,9 @@ import subprocess
 import sys
 import tempfile
 
+from pathlib import Path
+from typing import Any
+
 # To encrypt and decrypt Vault variables
 from ansible.parsing.vault import VaultLib
 
@@ -213,6 +216,12 @@ def setup_yaml() -> YAML:
     return yaml
 
 
+def read_yaml_file(file: Path) -> Any:
+    yaml = setup_yaml()
+    with open(file, "r", encoding="utf-8") as file_to_read:
+        return yaml.load(file_to_read)
+
+
 def main(filenames, vault: VaultLib, view_only: bool):
     logger = logging.getLogger("Vaulti")
     yaml = setup_yaml()
@@ -220,11 +229,9 @@ def main(filenames, vault: VaultLib, view_only: bool):
         # Read the original file without custom constructors (for comparing
         # later) (Deepcopy doesn't seem to work, so just load it before
         # defining custom constructors
-        with open(filename, "r", encoding="utf-8") as file:
-            original_data = yaml.load(file)
-
         # Register the constructor to let the yaml loader do the decrypting for you
         yaml.constructor.add_constructor("!vault", constructor_tmp_decrypt)
+        original_data = read_yaml_file(filename)
 
         # Load the yaml file into memory (will now auto-decrypt vault because
         # of the constructors)
