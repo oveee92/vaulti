@@ -43,12 +43,12 @@ Usage:
 
 """
 
-import sys
-import os
-import subprocess
-import tempfile
 import argparse
 import logging
+import os
+import subprocess
+import sys
+import tempfile
 
 # To encrypt and decrypt Vault variables
 from ansible.parsing.vault import VaultLib
