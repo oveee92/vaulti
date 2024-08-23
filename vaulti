@@ -1,54 +1,39 @@
 #!/usr/bin/env python3
 
-# Basic stuff
-import sys # To handle arguments, stdout, etc. for the command line
-import os # To fetch environment variables
-import subprocess # To open an editor in a subprocess
-import tempfile # To manage temporary files
-import argparse # For parsing command line options
-import logging # For better debug/troubleshooting
-
-# Yaml stuff
-from ruamel.yaml import YAML # Duh
-from ruamel.yaml.constructor import SafeConstructor
-from ruamel.yaml.scalarstring import LiteralScalarString # To display multiline variables nicely
-from ruamel.yaml.comments import CommentedMap, CommentedSeq, TaggedScalar # Basic usage of dicts, lists and tags
-from ruamel.yaml.tokens import CommentToken # To be able to insert newlines where needed
-from ruamel.yaml.error import StringMark    # To be able to insert newlines where needed
-
-# To encrypt and decrypt Vault variables
-from ansible.parsing.vault import VaultEditor, VaultLib, VaultSecret
-
-# To fetch Vault credentials from standard sources
-from ansible import constants as C
-from ansible.cli import CLI
-from ansible.parsing.dataloader import DataLoader
-
 """
+Utility to edit yaml files with inline ansible vault variables
 
-Ansible-vault Inline utility
+This is a utility to make ansible-vault inline encrypted variables a billion
+times easier to work with. Useful if you want to store the variables safely in
+AWX, or want to avoid encrypting entire files because you want to be able to
+search for all of your variables, but you don't like the way you currently have
+to read and write the variables.
 
-This is a utility to make ansible-vault inline encrypted variables a billion times easier to work with.
-Useful if you want to store the variables safely in AWX, or want to avoid encrypting entire files because you want to
-be able to search for all of your variables, but you don't like the way you currently have to read and write the variables.
+It opens an editor based on your EDITOR environment variable, where the
+variables have been decrypted. This is indicated by a tag, which is set to
+"!ENCRYPTED" by default.
 
-It opens an editor based on your EDITOR environment variable, where the variables have been decrypted.
-This is indicated by a tag, which is set to "!ENCRYPTED" by default.
+If it cannot decrypt the variable for any reason, it will be indicated with a
+"!VAULT_INVALID" tag, which will be translated back to its original value when
+you close the editor. It will still try to reencrypt.
 
-If it cannot decrypt the variable for any reason, it will be indicated with a "!VAULT_INVALID" tag, which will be translated
-back to its original value when you close the editor. It will still try to reencrypt
+From here, you can add or remove the tags from whichever variables you want,
+and when you save and quit, it will reencrypt and decrypt things for you as you
+specified.
 
-From here, you can add or remove the tags from whichever variables you want, and when you save and quit, it will
-reencrypt and decrypt things for you as you specified.
-
-Since ruamel.yaml does a lot of stuff in the background, there are some things that will be changed automatically:
-- Indentation for your multiline strings will always end up with a fixed (default 2) spaces relative to the variable it belongs to;
-  i.e. not the 10 spaces indented or whatever the default is from the `ansible-vault encrypt_string` output.
-- Header (---) and footer (...) will be added automatically to the variable file if it doesn't exist
+Since ruamel.yaml does a lot of stuff in the background, there are some things
+that will be changed automatically:
+- Indentation for your multiline strings will always end up with a fixed
+  (default 2) spaces relative to the variable it belongs to; i.e. not the 10
+  spaces indented or whatever the default is from the `ansible-vault
+  encrypt_string` output.
+- Header (---) and footer (...) will be added automatically to the variable
+  file if it doesn't exist
 - Extra whitespaces will be removed (for example `key:  value` -> `key: value`.)
 - An extra newline is added below the ansible-vault output, for readability.
 
-This script is developed by someone who just wants it to work, so feel free to change it if you want to make it work better.
+This script is developed by someone who just wants it to work, so feel free to
+change it if you want to make it work better.
 
 Usage:
 
@@ -56,195 +41,372 @@ Usage:
 ./vaulti <file1> <file2> --ask-vault-pass
 ./vaulti -h
 
+
+Contributions:
+
+Thanks to Nebucatnetzer for refactoring!
+
 """
 
-#--------------------------------------------------
+import argparse
+import logging
+import os
+import subprocess
+import sys
+import tempfile
 
-# What should the tag look like to indicate that it is actually an encrypted variable?
-DECRYPTED_TAG_NAME = u'!ENCRYPTED'
-INVALID_TAG_NAME = u'!VAULT_INVALID'
-ENSURE_NEWLINES_AFTER_VAULTED = True
+from argparse import Namespace
+from pathlib import Path
+from typing import Any
+from typing import BinaryIO
+from typing import IO
+from typing import Iterable
+from typing import Union
 
-vault = None
 
-#--------------------------------------------------
+from ansible import constants as C
+from ansible.cli import CLI
+from ansible.errors import AnsibleError
+from ansible.parsing.dataloader import DataLoader
+from ansible.parsing.vault import AnsibleVaultError
+from ansible.parsing.vault import VaultLib
 
-# Vault setup
-def setup_vault():
+from ruamel.yaml import ScalarNode
+from ruamel.yaml import YAML
+from ruamel.yaml.comments import (
+    CommentedMap,
+    CommentedSeq,
+    TaggedScalar,
+)
+from ruamel.yaml.compat import StringIO
+from ruamel.yaml.constructor import RoundTripConstructor
+from ruamel.yaml.tokens import (
+    CommentToken,
+)  # To be able to insert newlines where needed
+from ruamel.yaml.error import StringMark  # To be able to insert newlines where needed
 
+
+DECRYPTED_TAG_NAME = "!ENCRYPTED"
+INVALID_TAG_NAME = "!VAULT_INVALID"
+StreamType = Union[BinaryIO, IO[str], StringIO]
+
+
+def setup_vault(ask_vault_pass: bool) -> VaultLib:
+    """Ansible Vault boilerplate"""
     loader = DataLoader()
     vault_secret = CLI.setup_vault_secrets(
         loader=loader,
-        vault_ids=C.DEFAULT_VAULT_IDENTITY_LIST,
-        ask_vault_pass=args.ask_vault_pass # Only prompts if you specify --ask-vault-pass
+        vault_ids=C.DEFAULT_VAULT_IDENTITY_LIST,  # pylint: disable=no-member
+        ask_vault_pass=ask_vault_pass,  # Only prompts if you specify --ask-vault-pass
     )
-    vault = VaultLib(vault_secret)
-    return vault
-    
+    return VaultLib(vault_secret)
 
-# Create constructor functions to translate between encrypted and unencrypted tags when loading yaml
-def constructor_tmp_decrypt(self, node):
+
+def constructor_tmp_decrypt(_: RoundTripConstructor, node: ScalarNode) -> TaggedScalar:
+    """Constructor to translate between encrypted and unencrypted tags when
+    loading yaml
+
+    Gets passed self as an argument from YAML.
+    """
     try:
-        decrypted_value = vault.decrypt(node.value).decode('utf-8')
-    except:
-        # If the value cannot be decrypted for some reason, just use the original value and add an invalid tag
-        return TaggedScalar(value=node.value, style='|', tag=INVALID_TAG_NAME)
+        # pylint: disable=possibly-used-before-assignment
+        decrypted_value = VAULT.decrypt(vaulttext=node.value).decode("utf-8")
+    except (AnsibleError, AnsibleVaultError):
+        # If the value cannot be decrypted for some reason, just use the
+        # original value and add an invalid tag
+        return TaggedScalar(value=node.value, style="|", tag=INVALID_TAG_NAME)
 
     # Make it easier to read decrypted variables with newlines in it
-    if ("\n" in decrypted_value):
-        return TaggedScalar(value=decrypted_value, style='|', tag=DECRYPTED_TAG_NAME)
-    else:
-        return TaggedScalar(value=decrypted_value, style='', tag=DECRYPTED_TAG_NAME)
-
-def constructor_tmp_encrypt(self, node):
-    encrypted_value = vault.encrypt(node.value).decode('utf-8')
-    return TaggedScalar(value=encrypted_value, style='|', tag="!vault")
+    if "\n" in decrypted_value:
+        return TaggedScalar(value=decrypted_value, style="|", tag=DECRYPTED_TAG_NAME)
+    return TaggedScalar(value=decrypted_value, style="", tag=DECRYPTED_TAG_NAME)
 
 
-def constructor_tmp_invalid(self, node):
-    # The invalid tag should just be translated directly back to the original tag
-    return TaggedScalar(value=node.value, style='|', tag="!vault")
+def constructor_tmp_encrypt(_: RoundTripConstructor, node: ScalarNode) -> TaggedScalar:
+    """Constructor to encrypt YAML.
+
+    Gets passed self as an argument from YAML.
+    """
+    encrypted_value = VAULT.encrypt(plaintext=node.value).decode("utf-8")
+    return TaggedScalar(value=encrypted_value, style="|", tag="!vault")
 
 
-def compare_and_update(original_data, reencrypted_data):
-	## Take the new and original data, find each !vault entry, and if it exists in the original data,
-	## decrypt both and compare them. If they are the same, prefer the original data.
-    ## Will also ensure that there is a newline after a vaulted variable (for readability)
+def constructor_tmp_invalid(_: RoundTripConstructor, node: ScalarNode) -> TaggedScalar:
+    """ The invalid tag should just be translated directly back to the original tag and value """
+    return TaggedScalar(value=node.value, style="|", tag="!vault")
 
-	# Loop recursively through everything
-    if isinstance(original_data, CommentedMap) and isinstance(reencrypted_data, CommentedMap):
-        for key in reencrypted_data:
-            if ENSURE_NEWLINES_AFTER_VAULTED:
-                if isinstance(reencrypted_data[key], TaggedScalar) and reencrypted_data[key].tag.value == '!vault':
-                    ensure_newline(reencrypted_data, key) 
-            if key in original_data:
-                # If ansible vault fails, use the new data instead of crashing
-                try:
-                    reencrypted_data[key] = compare_and_update(original_data[key], reencrypted_data[key])
-                except:
-                    reencrypted_data[key] = reencrypted_data[key]
-        
-    elif isinstance(original_data, CommentedSeq) and isinstance(reencrypted_data, CommentedSeq):
-        for i in range(len(reencrypted_data)):
-            if ENSURE_NEWLINES_AFTER_VAULTED:
-                if isinstance(reencrypted_data[i], TaggedScalar) and reencrypted_data[i].tag.value == '!vault':
-                    ensure_newline(reencrypted_data, i)
+
+def is_commented_map(data: Any) -> bool:
+    """Helper function for readability"""
+    return isinstance(data, CommentedMap)
+
+
+def is_commented_seq(data: Any) -> bool:
+    """Helper function for readability"""
+    return isinstance(data, CommentedSeq)
+
+
+def is_tagged_scalar(data: Any) -> bool:
+    """Helper function for readability"""
+    return isinstance(data, TaggedScalar)
+
+
+def _process_commented_map(
+    original_data: CommentedMap, reencrypted_data: CommentedMap
+) -> tuple[CommentedMap, CommentedMap]:
+    """Helper function for compare_and_update. Loops over keys in a dict"""
+    for key in reencrypted_data:
+        if (
+            is_tagged_scalar(reencrypted_data[key])
+            and reencrypted_data[key].tag.value == "!vault"
+        ):
+            ensure_newline(reencrypted_data, key)
+        if key in original_data:
             # If ansible vault fails, use the new data instead of crashing
             try:
-                reencrypted_data[i] = compare_and_update(original_data[i], reencrypted_data[i])
-            except:
-                reencrypted_data[i] = reencrypted_data[i]
-        
-    elif (isinstance(original_data, TaggedScalar) and original_data.tag.value == '!vault' and
-          isinstance(reencrypted_data, TaggedScalar) and reencrypted_data.tag.value == '!vault'):
-        if vault.decrypt(original_data.value) == vault.decrypt(reencrypted_data.value):
+                reencrypted_data[key] = compare_and_update(
+                    original_data=original_data[key],
+                    reencrypted_data=reencrypted_data[key],
+                )
+            except (AnsibleError, AnsibleVaultError):
+                reencrypted_data[key] = reencrypted_data[key]
+    return original_data, reencrypted_data
+
+
+def _process_commented_seq(
+    original_data: CommentedSeq, reencrypted_data: CommentedSeq
+) -> tuple[CommentedSeq, CommentedSeq]:
+    """Helper function for compare_and_update. Loops over items in a list"""
+    for i in range(len(reencrypted_data)):  # pylint: disable=consider-using-enumerate
+        if (
+            is_tagged_scalar(reencrypted_data[i])
+            and reencrypted_data[i].tag.value == "!vault"
+        ):
+            ensure_newline(reencrypted_data, str(i))
+        # If ansible vault fails, use the new data instead of crashing
+        try:
+            reencrypted_data[i] = compare_and_update(
+                original_data=original_data[i],
+                reencrypted_data=reencrypted_data[i],
+            )
+        except (AnsibleError, AnsibleVaultError):
+            reencrypted_data[i] = reencrypted_data[i]
+    return original_data, reencrypted_data
+
+
+def compare_and_update(
+    original_data: Union[CommentedMap | CommentedSeq | TaggedScalar],
+    reencrypted_data: Union[CommentedMap | CommentedSeq | TaggedScalar],
+) -> Union[CommentedMap | CommentedSeq | TaggedScalar]:
+    """Take the new and original data, find each !vault entry, and if it exists
+    in the original data, decrypt both and compare them. If they are the same,
+    prefer the original data, to prevent useless diffs. Will also ensure that there
+    is a newline after a vaulted variable (for readability)"""
+
+    # Loop recursively through everything
+    if is_commented_map(original_data) and is_commented_map(reencrypted_data):
+        original_data, reencrypted_data = _process_commented_map(
+            original_data, reencrypted_data  # type: ignore[arg-type]
+        )
+    elif is_commented_seq(original_data) and is_commented_seq(reencrypted_data):
+        original_data, reencrypted_data = _process_commented_seq(
+            original_data, reencrypted_data  # type: ignore[arg-type]
+        )
+
+    elif (
+        is_tagged_scalar(original_data)
+        and original_data.tag.value == "!vault"
+        and is_tagged_scalar(reencrypted_data)
+        and reencrypted_data.tag.value == "!vault"
+    ):
+        # pylint: disable=line-too-long
+        if VAULT.decrypt(original_data.value) == VAULT.decrypt(reencrypted_data.value):  # type: ignore[union-attr]
             return original_data
-    
+
     return reencrypted_data
 
-def ensure_newline(data, key):
-    ## Utility script, to avoid having to write it twice in the recursive stuff above
+
+def ensure_newline(data: Union[CommentedMap, CommentedSeq], key: "str") -> None:
+    """Utility script, to avoid having to write it twice in the recursive stuff above"""
     comment_nextline = data.ca.items.get(key)
     # Ensure that there is at least one newline after the vaulted value, for readability
     if comment_nextline is None:
         data.ca.items[key] = [None, None, None, None]
-        # All this just to make a newline... not 100% sure how this StringMark stuff works
+        # All this just to make a newline... not 100% sure how this StringMark
+        # stuff works
         newline_token = CommentToken(
-            '\n',
-            start_mark=StringMark(buffer=data, pointer=0, name=None, index=0, line=0, column=0),
-            end_mark=StringMark(buffer=data, pointer=1, name=None, index=1, line=0, column=1)
+            "\n",
+            start_mark=StringMark(
+                buffer=data, pointer=0, name=None, index=0, line=0, column=0
+            ),
+            end_mark=StringMark(
+                buffer=data, pointer=1, name=None, index=1, line=0, column=1
+            ),
         )
         data.ca.items[key][2] = newline_token
 
 
-def main(filenames):
+def setup_yaml() -> YAML:
+    """Set up the neccesary yaml loader stuff"""
+    yaml = YAML()
+    # Don't strip out unneccesary quotes around scalar variables
+    yaml.preserve_quotes = True
+    # Prevent the yaml dumper from line-breaking the longer variables
+    yaml.width = 2147483647
+    yaml.explicit_start = True  # Add --- at the start of the file
+    yaml.explicit_end = True  # Add ... at the end of the file
+    # Ensure list items are indented, not inline with the parent variable
+    yaml.indent(mapping=2, sequence=4, offset=2)
+    # Register the constructor to let the yaml loader do the decrypting for you
+    return yaml
 
+
+def read_encrypted_yaml_file(file: Path) -> Any:
+    """Add a custom constructor to decrypt vault, and load the content"""
+    yaml = setup_yaml()
+    yaml.constructor.add_constructor("!vault", constructor_tmp_decrypt)
+    with open(file, "r", encoding="utf-8") as file_to_decrypt:
+        return yaml.load(file_to_decrypt)
+
+
+def read_yaml_file(file: Path) -> Any:
+    """Load the yaml file"""
+    yaml = setup_yaml()
+    with open(file, "r", encoding="utf-8") as file_to_read:
+        return yaml.load(file_to_read)
+
+
+def display_yaml_data_and_exit(yaml_data: Union[Path, StreamType]) -> None:
+    """Dumps the unencrypted content without opening an editor"""
+    yaml = setup_yaml()
+    yaml.dump(data=yaml_data, stream=sys.stdout)
+    sys.exit(0)
+
+
+def _get_default_editor() -> str:
+    """Get the default editor and open the provided file
+
+    Ignores additional parameters provided to the editor.
+    """
+    try:
+        editor = os.environ["VISUAL"].split()
+    except KeyError:
+        editor = os.environ.get("EDITOR", "nano").split()
+    return editor[0]
+
+
+def open_file_in_default_editor(file_name: Path) -> None:
+    """Opens a file in the default editor"""
+    logger = logging.getLogger("Vaulti")
+    editor = _get_default_editor()
+    logger.info("Opening editor with params: %s", editor)
+    subprocess.run([editor, file_name], check=True)
+
+
+def write_data_to_temporary_file(data_to_write: Union[Path, StreamType]) -> Path:
+    """Write the yaml contents to a temporary file, for editing"""
+    yaml = setup_yaml()
+    # Create a temporary file
+    with tempfile.NamedTemporaryFile(
+        mode="w", delete=False, prefix="vaultedit_", suffix=".yaml"
+    ) as temp_file:
+        yaml.dump(data_to_write, temp_file)
+        return Path(temp_file.name)
+
+
+def encrypt_and_write_tmp_file(
+    tmp_file: Path, final_file: Path, original_data: CommentedMap
+) -> None:
+    """Reencrypts yaml data and writes it to a file"""
+    yaml = setup_yaml()
+    # Register the constructor to let the yaml loader do the
+    # reencrypting for you Adding it this late to avoid encryption step
+    # before the editor opens
+    yaml.constructor.add_constructor(DECRYPTED_TAG_NAME, constructor_tmp_encrypt)
+    yaml.constructor.add_constructor(INVALID_TAG_NAME, constructor_tmp_invalid)
+    # After the editor is closed, reload the yaml from the tmp-file
+    # (will auto-reencrypt because of the constructors)
+    with open(tmp_file, "r", encoding="utf-8") as file:
+        edited_data = yaml.load(file)
+    # Loop through all the values of the new data, making sure that
+    # any encrypted data unchanged from the original still uses the
+    # original vault encrypted data. This makes your git diffs much
+    # cleaner.
+    final_data = compare_and_update(original_data, edited_data)
+    # Then write the final data back to the original file
+    with open(final_file, "w", encoding="utf-8") as file:
+        yaml.dump(final_data, file)
+
+
+def main(filenames: Iterable[Path], view_only: bool) -> None:
+    """Loop through each file specified as params"""
     for filename in filenames:
+        # Read the original file without custom constructors (for comparing
+        # later) (Deepcopy doesn't seem to work, so just load it before
+        # defining custom constructors
+        original_data = read_yaml_file(filename)
+        # Load the yaml file into memory (will now auto-decrypt vault because
+        # of the constructors)
+        decrypted_data = read_encrypted_yaml_file(filename)
 
-        # Configure the YAML settings
-        yaml = YAML()
-        yaml.preserve_quotes = True # Don't strip out unneccesary quotes around scalar variables
-        yaml.width = float("inf") # Prevent the yaml dumper from line-breaking the longer variables
-        yaml.explicit_start = True # Add --- at the start of the file
-        yaml.explicit_end = True # Add ... at the end of the file
-        yaml.indent(mapping=2, sequence=4, offset=2) # Ensure list items are indented, not inline with the parent variable
-
-        # Read the original file without custom constructors (for comparing later) (Deepcopy doesn't seem to work, so just
-		# load it before defining custom constructors
-        with open(filename, 'r') as file:
-            original_data = yaml.load(file)
-
-        # Register the constructor to let the yaml loader do the decrypting for you
-        yaml.constructor.add_constructor('!vault', constructor_tmp_decrypt)
-
-        # Load the yaml file into memory (will now auto-decrypt vault because of the constructors)
-        with open(filename, 'r') as file:
-            decrypted_data = yaml.load(file)
-        
-        # If the script is just run for viewing, dump the content to stdout and exit
-        if args.view:
-            yaml.dump(decrypted_data, sys.stdout)
-            return
-
-        # Run the rest inside a try-finally block to make sure the decrypted tmp-file is deleted afterwards
+        if view_only:
+            display_yaml_data_and_exit(decrypted_data)
+        # Run the rest inside a try-finally block to make sure the decrypted
+        # tmp-file is deleted afterwards
         try:
-        
-            # Register the constructor to let the yaml loader do the reencrypting for you
-            # Adding it this late to avoid encryption step before the editor opens
-            yaml.constructor.add_constructor(DECRYPTED_TAG_NAME, constructor_tmp_encrypt)
-            yaml.constructor.add_constructor(INVALID_TAG_NAME, constructor_tmp_invalid)
-
-            # Create a temporary file
-            with tempfile.NamedTemporaryFile(mode='w', delete=False, prefix="vaultedit_", suffix=".yaml") as temp_file:
-                yaml.dump(decrypted_data, temp_file)
-                temp_filename = temp_file.name
-                created_time = os.stat(temp_file.name).st_ctime
-        
-			# Find the editor to open. Needs to handle if the EDITOR variable contains parameters, e.g. "vim -N ..."
-            editor = os.environ.get('EDITOR', 'vim').split()
-            editor.append(temp_filename) # Add the filename at the end of the command
-            logger.info("Opening editor with params: " + str(editor))
-            subprocess.call(editor)
-        
-            # After the editor is closed, reload the yaml from the tmp-file (will auto-reencrypt because of the constructors)
-            with open(temp_filename, 'r') as file:
-                edited_data = yaml.load(file)
-
+            temp_filename = write_data_to_temporary_file(decrypted_data)
+            created_time = os.stat(temp_filename).st_ctime
+            open_file_in_default_editor(temp_filename.absolute())
             # Don't do anything if the file hasn't been changed since its creation
-            changed_time = os.stat(temp_file.name).st_ctime
+            changed_time = os.stat(temp_filename).st_ctime
             if created_time != changed_time:
-
-				# Loop through all the values of the new data, making sure that any encrypted data unchanged from the original
-				# still uses the original vault encrypted data. This makes your git diffs much cleaner.
-                final_data = compare_and_update(original_data, edited_data)
-
-				# Then write the final data back to the original file
-                with open(filename, 'w') as file:
-                    yaml.dump(final_data, file)
-        
+                encrypt_and_write_tmp_file(
+                    tmp_file=temp_filename,
+                    final_file=filename,
+                    original_data=original_data,
+                )
         finally:
             os.unlink(temp_filename)
 
 
-parser = argparse.ArgumentParser(
-    prog='vaulti',
-    description='Helps you with inline encrypted variables')
+def parse_arguments() -> Namespace:
+    """Parse the arguments from the command line"""
+    parser = argparse.ArgumentParser(
+        prog="vaulti", description="Helps you with inline encrypted variables"
+    )
 
-parser.add_argument('-r', '--view', action='store_true',
-    help="Just print the decrypted output, don't open an editor. NOTE: This will print your secrets in plaintext")
-parser.add_argument('-v', '--verbose', action='store_const', dest="loglevel", const=logging.INFO,
-    help="Print more details, for debugging. NOTE: This will print your secrets in plaintext")
-parser.add_argument('files', nargs='+',
-    help="Specify one or more files that the script should open")
-parser.add_argument('--ask-vault-pass', action='store_true',
-    help="Specify the argument yourself")
+    parser.add_argument(
+        "-r",
+        "--view",
+        action="store_true",
+        help=(
+            "Just print the decrypted output, don't open an editor."
+            "NOTE: This will print your secrets in plaintext"
+        ),
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_const",
+        dest="loglevel",
+        const=logging.INFO,
+        help=(
+            "Print more details, for debugging."
+            "NOTE: This will print your secrets in plaintext"
+        ),
+    )
+    parser.add_argument(
+        "files", nargs="+", help="Specify one or more files that the script should open"
+    )
+    parser.add_argument(
+        "--ask-vault-pass", action="store_true", help="Specify the argument yourself"
+    )
 
-args = parser.parse_args()
-
-vault = setup_vault()
+    return parser.parse_args()
 
 
-logging.basicConfig(level=args.loglevel, format='%(levelname)s: %(message)s')
-logger = logging.getLogger("Vaulti")
-
-main(args.files)
+if __name__ == "__main__":
+    args = parse_arguments()
+    VAULT = setup_vault(ask_vault_pass=args.ask_vault_pass)
+    logging.basicConfig(level=args.loglevel, format="%(levelname)s: %(message)s")
+    main(args.files, view_only=args.view)
