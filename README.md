@@ -109,6 +109,9 @@ schenario will overwrite the partially encrypted yaml file with junk or empty da
 issue for some time, but if you don't have your files in a git repo with the ability to revert files easily,
 please dont use this just yet :)
 
+Also, if you try to change the yaml tags between `!VAULT_INVALID`, `!vault` and `!ENCRYPTED` when editing, you'll probably end up with unencrypted
+or broken variables. Stick to adding or removing the `!ENCRYPTED` tags only.
+
 ## Caveats
 
 Since it uses the fantastic (yet sparsely documented) `ruamel.yaml`, and the yaml spec is pretty extensive, this utility does
