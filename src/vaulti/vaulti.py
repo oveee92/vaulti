@@ -407,7 +407,11 @@ def main_loop(filenames: Iterable[Path], view_only: bool) -> None:
 
 
 def main() -> None:
+    """Parse arguments and set up logging before moving on to the main loop"""
     args = parse_arguments()
+    # Need to use the VAULT variable in the custom constructors, and I couldn't figure
+    # out how to pass it as an extra parameter to the add_constructor function
+    # pylint: disable=global-statement
     global VAULT
     VAULT = setup_vault(ask_vault_pass=args.ask_vault_pass)
     logging.basicConfig(level=args.loglevel, format="%(levelname)s: %(message)s")
