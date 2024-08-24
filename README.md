@@ -104,16 +104,19 @@ If you wish you had `ansible-vault edit` for partially encrypted files, that is 
 
 ## Why you should NOT use this
 
-This is created by a sysadmin, not a serious programmer. It is very possible that any exceptions thrown here will overwrite the partially encrypted yaml file with junk or empty data.
-So if you don't have your files in a git repo with the ability to revert files easily, please dont use this in production yet :)
+This is created by a sysadmin, not a professional programmer. It is possible that an unhandled exception thrown or edge-case
+schenario will overwrite the partially encrypted yaml file with junk or empty data. It isn't likely, and I've used it without
+issue for some time, but if you don't have your files in a git repo with the ability to revert files easily,
+please dont use this just yet :)
 
 ## Caveats
 
-Since it uses the fantastic (yet sparsely documented) `ruamel.yaml`, and the yaml spec is pretty extensive, this utility does make some "non-negotiable" changes you should be aware of:
+Since it uses the fantastic (yet sparsely documented) `ruamel.yaml`, and the yaml spec is pretty extensive, this utility does
+make some "non-negotiable" changes to your files that you should be aware of:
 
 - Indentation for your multiline strings will always end up with a fixed (default 2) spaces relative to the variable it belongs to;
   i.e. not the 10 spaces indented or whatever the default is from the `ansible-vault encrypt_string` output. This is good for consistency, but it means the indentation
-  of the inline-encrypted variables will probably change the first time you use this. If you don't change the decrypted value, it should remain the same though, except for the indent change.
+  of the inline-encrypted variables will probably change the first time you use this. If you don't change the decrypted value it should remain the same though, except for the indent change.
 - Extra whitespaces will be removed whereever it is found (for example `key:  value` -> `key: value`)
 
 Also, there are a few "opinionated" things I've hardcoded, which are relatively easy to comment out or change if you wish it.
@@ -122,7 +125,7 @@ Also, there are a few "opinionated" things I've hardcoded, which are relatively 
 - An extra newline is added below the ansible-vault output, for readability.
 - No automatic line breaks for long values.
 
-I have not yet implemented anything with different vault IDs, because I've never used it.
+I have not yet implemented anything with different vault IDs, because I've never used it...
 
 I have not tested all possible ways of defining ansible-vault credentials, just the environment variable `ANSIBLE_VAULT_PASSWORD_FILE` and `--ask-vault-pass`
 

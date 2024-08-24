@@ -84,6 +84,7 @@ from ruamel.yaml.tokens import (
     CommentToken,
 )  # To be able to insert newlines where needed
 from ruamel.yaml.error import StringMark  # To be able to insert newlines where needed
+from ruamel.yaml.scanner import ScannerError
 
 
 DECRYPTED_TAG_NAME = "!ENCRYPTED"
@@ -381,7 +382,12 @@ def main_loop(filenames: Iterable[Path], view_only: bool) -> None:
         # Read the original file without custom constructors (for comparing
         # later) (Deepcopy doesn't seem to work, so just load it before
         # defining custom constructors
-        original_data = read_yaml_file(filename)
+        try:
+            original_data = read_yaml_file(filename)
+        except ScannerError:
+            print(f"'{filename}' is not a valid YAML file", file=sys.stderr)
+            exit(1)
+
         # Load the yaml file into memory (will now auto-decrypt vault because
         # of the constructors)
         decrypted_data = read_encrypted_yaml_file(filename)
