@@ -25,7 +25,7 @@ classifiers = [
 license = {text = "MIT"}
 
 [project.scripts]
-vaulti = "vaulti.vaulti:main_entry"
+vaulti = "vaulti.vaulti:main"
 
 [project.urls]
 Homepage = "https://github.com/oveee92/vaulti"

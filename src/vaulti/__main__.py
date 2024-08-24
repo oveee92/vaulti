@@ -1,4 +1,4 @@
-from .vaulti import main_entry
+from .vaulti import main
 
 if __name__ == "__main__":
-    main_entry()
+    main()

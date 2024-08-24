@@ -339,43 +339,6 @@ def encrypt_and_write_tmp_file(
         yaml.dump(final_data, file)
 
 
-def main(args: Iterable[Path]) -> None:
-    global VAULT
-    VAULT = setup_vault(ask_vault_pass=args.ask_vault_pass)
-    logging.basicConfig(level=args.loglevel, format="%(levelname)s: %(message)s")
-    main_loop(args.files, view_only=args.view)
-
-def main_loop(filenames: Iterable[Path], view_only: bool) -> None:
-    """Loop through each file specified as params"""
-    for filename in filenames:
-        # Read the original file without custom constructors (for comparing
-        # later) (Deepcopy doesn't seem to work, so just load it before
-        # defining custom constructors
-        original_data = read_yaml_file(filename)
-        # Load the yaml file into memory (will now auto-decrypt vault because
-        # of the constructors)
-        decrypted_data = read_encrypted_yaml_file(filename)
-
-        if view_only:
-            display_yaml_data_and_exit(decrypted_data)
-        # Run the rest inside a try-finally block to make sure the decrypted
-        # tmp-file is deleted afterwards
-        try:
-            temp_filename = write_data_to_temporary_file(decrypted_data)
-            created_time = os.stat(temp_filename).st_ctime
-            open_file_in_default_editor(temp_filename.absolute())
-            # Don't do anything if the file hasn't been changed since its creation
-            changed_time = os.stat(temp_filename).st_ctime
-            if created_time != changed_time:
-                encrypt_and_write_tmp_file(
-                    tmp_file=temp_filename,
-                    final_file=filename,
-                    original_data=original_data,
-                )
-        finally:
-            os.unlink(temp_filename)
-
-
 def parse_arguments() -> Namespace:
     """Parse the arguments from the command line"""
     parser = argparse.ArgumentParser(
@@ -412,9 +375,44 @@ def parse_arguments() -> Namespace:
     return parser.parse_args()
 
 
-def main_entry():
+def main_loop(filenames: Iterable[Path], view_only: bool) -> None:
+    """Loop through each file specified as params"""
+    for filename in filenames:
+        # Read the original file without custom constructors (for comparing
+        # later) (Deepcopy doesn't seem to work, so just load it before
+        # defining custom constructors
+        original_data = read_yaml_file(filename)
+        # Load the yaml file into memory (will now auto-decrypt vault because
+        # of the constructors)
+        decrypted_data = read_encrypted_yaml_file(filename)
+
+        if view_only:
+            display_yaml_data_and_exit(decrypted_data)
+        # Run the rest inside a try-finally block to make sure the decrypted
+        # tmp-file is deleted afterwards
+        try:
+            temp_filename = write_data_to_temporary_file(decrypted_data)
+            created_time = os.stat(temp_filename).st_ctime
+            open_file_in_default_editor(temp_filename.absolute())
+            # Don't do anything if the file hasn't been changed since its creation
+            changed_time = os.stat(temp_filename).st_ctime
+            if created_time != changed_time:
+                encrypt_and_write_tmp_file(
+                    tmp_file=temp_filename,
+                    final_file=filename,
+                    original_data=original_data,
+                )
+        finally:
+            os.unlink(temp_filename)
+
+
+def main() -> None:
     args = parse_arguments()
-    main(args)
+    global VAULT
+    VAULT = setup_vault(ask_vault_pass=args.ask_vault_pass)
+    logging.basicConfig(level=args.loglevel, format="%(levelname)s: %(message)s")
+    main_loop(args.files, view_only=args.view)
+
 
 if __name__ == "__main__":
-    main_entry()
+    main()
