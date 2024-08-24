@@ -85,6 +85,7 @@ from ruamel.yaml.tokens import (
 )  # To be able to insert newlines where needed
 from ruamel.yaml.error import StringMark  # To be able to insert newlines where needed
 from ruamel.yaml.scanner import ScannerError
+from ruamel.yaml.parser import ParserError
 
 
 DECRYPTED_TAG_NAME = "!ENCRYPTED"
@@ -329,7 +330,14 @@ def encrypt_and_write_tmp_file(
     # After the editor is closed, reload the yaml from the tmp-file
     # (will auto-reencrypt because of the constructors)
     with open(tmp_file, "r", encoding="utf-8") as file:
-        edited_data = yaml.load(file)
+        try:
+            edited_data = yaml.load(file)
+        except (ScannerError, ParserError):
+            print(f"The edited file is no longer valid YAML, please try again", file=sys.stderr)
+            exit(1)
+        except AnsibleError as err:
+            print(f"AnsibleError: {err}", file=sys.stderr)
+            exit(1)
     # Loop through all the values of the new data, making sure that
     # any encrypted data unchanged from the original still uses the
     # original vault encrypted data. This makes your git diffs much
