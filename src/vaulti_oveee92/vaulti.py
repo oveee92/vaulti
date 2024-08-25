@@ -327,17 +327,39 @@ def encrypt_and_write_tmp_file(
     # before the editor opens
     yaml.constructor.add_constructor(DECRYPTED_TAG_NAME, constructor_tmp_encrypt)
     yaml.constructor.add_constructor(INVALID_TAG_NAME, constructor_tmp_invalid)
+
+
+    def prompt_user_action() -> str:
+        while True:
+            try:
+                user_input = input("Keep editing file (e), Discard changes (d) ? ").strip().lower()
+                if user_input in ['e', 'd']:
+                    return user_input
+                print("Invalid input. What would you like to do?")
+            except KeyboardInterrupt:
+                sys.exit()
+
     # After the editor is closed, reload the yaml from the tmp-file
-    # (will auto-reencrypt because of the constructors)
-    with open(tmp_file, "r", encoding="utf-8") as file:
-        try:
-            edited_data = yaml.load(file)
-        except (ScannerError, ParserError):
-            print(f"The edited file is no longer valid YAML, please try again", file=sys.stderr)
-            exit(1)
-        except AnsibleError as err:
-            print(f"AnsibleError: {err}", file=sys.stderr)
-            exit(1)
+    # Give the user a chance to re-open the file if the yaml could not be parsed
+    is_file_parsed = False
+    while not is_file_parsed:
+        with open(tmp_file, "r", encoding="utf-8") as file:
+            try:
+                edited_data = yaml.load(file)
+                is_file_parsed = True
+            except (ScannerError, ParserError):
+                print("The edited file is no longer valid YAML. What would you like to do?")
+                user_retry = prompt_user_action()
+
+                if user_retry == 'e':
+                    open_file_in_default_editor(tmp_file.absolute())
+                elif user_retry == 'd':
+                    print("Changes discarded. Exiting")
+                    sys.exit()
+            except AnsibleError as err:
+                print(f"AnsibleError: {err}", file=sys.stderr)
+                sys.exit()
+
     # Loop through all the values of the new data, making sure that
     # any encrypted data unchanged from the original still uses the
     # original vault encrypted data. This makes your git diffs much
@@ -394,7 +416,7 @@ def main_loop(filenames: Iterable[Path], view_only: bool) -> None:
             original_data = read_yaml_file(filename)
         except ScannerError:
             print(f"'{filename}' is not a valid YAML file", file=sys.stderr)
-            exit(1)
+            sys.exit()
 
         # Load the yaml file into memory (will now auto-decrypt vault because
         # of the constructors)
