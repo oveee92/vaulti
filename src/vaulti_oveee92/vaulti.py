@@ -62,6 +62,7 @@ from typing import BinaryIO
 from typing import IO
 from typing import Iterable
 from typing import Union
+from typing import List
 
 
 from ansible import constants as C
@@ -286,24 +287,27 @@ def display_yaml_data_and_exit(yaml_data: Union[Path, StreamType]) -> None:
     sys.exit(0)
 
 
-def _get_default_editor() -> str:
+def _get_default_editor() -> List[str]:
     """Get the default editor and open the provided file
 
     Ignores additional parameters provided to the editor.
     """
-    try:
-        editor = os.environ["VISUAL"].split()
-    except KeyError:
+    editor = os.environ.get("VISUAL", "").split()
+    if not editor:
         editor = os.environ.get("EDITOR", "nano").split()
-    return editor[0]
+
+    if not editor:
+        print("No editor configured in neither VISUAL nor EDITOR variable. Exiting.")
+        sys.exit(1)
+    return editor
 
 
 def open_file_in_default_editor(file_name: Path) -> None:
     """Opens a file in the default editor"""
     logger = logging.getLogger("Vaulti")
     editor = _get_default_editor()
-    logger.info("Opening editor with params: %s", editor)
-    subprocess.run([editor, file_name], check=True)
+    logger.info("Opening editor with params: %s", str(editor))
+    subprocess.run(editor + [file_name], check=True)
 
 
 def write_data_to_temporary_file(data_to_write: Union[Path, StreamType]) -> Path:
@@ -337,7 +341,7 @@ def encrypt_and_write_tmp_file(
                     return user_input
                 print("Invalid input. What would you like to do?")
             except KeyboardInterrupt:
-                sys.exit()
+                sys.exit(0)
 
     # After the editor is closed, reload the yaml from the tmp-file
     # Give the user a chance to re-open the file if the yaml could not be parsed
@@ -355,10 +359,10 @@ def encrypt_and_write_tmp_file(
                     open_file_in_default_editor(tmp_file.absolute())
                 elif user_retry == 'd':
                     print("Changes discarded. Exiting")
-                    sys.exit()
+                    sys.exit(0)
             except AnsibleError as err:
                 print(f"AnsibleError: {err}", file=sys.stderr)
-                sys.exit()
+                sys.exit(1)
 
     # Loop through all the values of the new data, making sure that
     # any encrypted data unchanged from the original still uses the
@@ -416,7 +420,7 @@ def main_loop(filenames: Iterable[Path], view_only: bool) -> None:
             original_data = read_yaml_file(filename)
         except ScannerError:
             print(f"'{filename}' is not a valid YAML file", file=sys.stderr)
-            sys.exit()
+            sys.exit(1)
 
         # Load the yaml file into memory (will now auto-decrypt vault because
         # of the constructors)
@@ -439,7 +443,8 @@ def main_loop(filenames: Iterable[Path], view_only: bool) -> None:
                     original_data=original_data,
                 )
         finally:
-            os.unlink(temp_filename)
+            #os.unlink(temp_filename)
+            pass
 
 
 def main() -> None:
