@@ -443,8 +443,7 @@ def main_loop(filenames: Iterable[Path], view_only: bool) -> None:
                     original_data=original_data,
                 )
         finally:
-            #os.unlink(temp_filename)
-            pass
+            os.unlink(temp_filename)
 
 
 def main() -> None:
