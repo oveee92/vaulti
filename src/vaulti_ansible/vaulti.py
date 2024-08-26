@@ -98,12 +98,17 @@ VAULT = None
 def setup_vault(ask_vault_pass: bool) -> VaultLib:
     """Ansible Vault boilerplate"""
     loader = DataLoader()
-    vault_secret = CLI.setup_vault_secrets(
-        loader=loader,
-        vault_ids=C.DEFAULT_VAULT_IDENTITY_LIST,  # pylint: disable=no-member
-        ask_vault_pass=ask_vault_pass,  # Only prompts if you specify --ask-vault-pass
-    )
+    try:
+        vault_secret = CLI.setup_vault_secrets(
+            loader=loader,
+            vault_ids=C.DEFAULT_VAULT_IDENTITY_LIST,  # pylint: disable=no-member
+            ask_vault_pass=ask_vault_pass,  # Only prompts if you specify --ask-vault-pass
+        )
+    except AnsibleError as err:
+        print(f"AnsibleError: {err}", file=sys.stderr)
+        sys.exit(1)
     return VaultLib(vault_secret)
+
 
 
 def constructor_tmp_decrypt(_: RoundTripConstructor, node: ScalarNode) -> TaggedScalar:
