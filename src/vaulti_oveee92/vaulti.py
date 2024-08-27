@@ -38,7 +38,8 @@ change it if you want to make it work better.
 Usage:
 
 ./vaulti <file1> <file2> ...
-./vaulti <file1> <file2> --ask-vault-pass
+./vaulti <file1> --ask-vault-pass
+./vaulti <file1> --vault-id myid1@prompt --vault-id myid2@passwordfile
 ./vaulti -h
 
 
@@ -89,22 +90,42 @@ from ruamel.yaml.scanner import ScannerError
 from ruamel.yaml.parser import ParserError
 
 
-DECRYPTED_TAG_NAME = "!ENCRYPTED"
-INVALID_TAG_NAME = "!VAULT_INVALID"
+DECRYPTED_TAG_NAME = "!ENCRYPT"
+INVALID_TAG_NAME = "!COULD_NOT_DECRYPT"
+VAULT_ID_TAG_SYMBOL = ":" # The symbol to denote the ansible-vault id
 StreamType = Union[BinaryIO, IO[str], StringIO]
 VAULT = None
 
 
-def setup_vault(ask_vault_pass: bool) -> VaultLib:
+def setup_vault(ask_vault_pass: bool, vault_password_file: str = None,
+                vault_ids: list = None) -> VaultLib:
     """Ansible Vault boilerplate"""
     loader = DataLoader()
+
+    # If no custom vauld ids are specified, just go with the default
+    if vault_ids is None:
+        # This variable might exist, depending on the ansible configuration. Ignore it with pylint
+        vault_ids = C.DEFAULT_VAULT_IDENTITY_LIST  # pylint: disable=no-member
+    # If a vault password file is specified, add it to the default id
+    if vault_password_file:
+        vault_ids.append(f"@{vault_password_file}")
+    # Set up vault
     vault_secret = CLI.setup_vault_secrets(
         loader=loader,
-        vault_ids=C.DEFAULT_VAULT_IDENTITY_LIST,  # pylint: disable=no-member
-        ask_vault_pass=ask_vault_pass,  # Only prompts if you specify --ask-vault-pass
+        vault_ids=vault_ids,
+        ask_vault_pass=ask_vault_pass,
     )
     return VaultLib(vault_secret)
 
+
+def extract_vault_label(vaulttext: str) -> str:
+    """Extracts the label from the Vault ID line in the encrypted data.
+    Returns an empty string if default"""
+    first_line = vaulttext.splitlines()[0]
+    parts = first_line.split(";")
+    if len(parts) >= 4:
+        return parts[3]  # This is the label
+    return ""  # Return "" if no label is present
 
 def constructor_tmp_decrypt(_: RoundTripConstructor, node: ScalarNode) -> TaggedScalar:
     """Constructor to translate between encrypted and unencrypted tags when
@@ -120,18 +141,31 @@ def constructor_tmp_decrypt(_: RoundTripConstructor, node: ScalarNode) -> Tagged
         # original value and add an invalid tag
         return TaggedScalar(value=node.value, style="|", tag=INVALID_TAG_NAME)
 
+    label = extract_vault_label(node.value)
+    if label != "":
+        decrypted_tag_with_label = f"{DECRYPTED_TAG_NAME}{VAULT_ID_TAG_SYMBOL}{label}"
+    else:
+        decrypted_tag_with_label = DECRYPTED_TAG_NAME
+
     # Make it easier to read decrypted variables with newlines in it
     if "\n" in decrypted_value:
-        return TaggedScalar(value=decrypted_value, style="|", tag=DECRYPTED_TAG_NAME)
-    return TaggedScalar(value=decrypted_value, style="", tag=DECRYPTED_TAG_NAME)
+        return TaggedScalar(value=decrypted_value, style="|", tag=decrypted_tag_with_label)
+    return TaggedScalar(value=decrypted_value, style="", tag=decrypted_tag_with_label)
 
+
+def extract_label_from_tag(tag: str) -> Union[str, None]:
+    """Extracts the label from the YAML tag. Returns None if none is found."""
+    if ":" in tag:
+        return tag.split(":")[1]
+    return None
 
 def constructor_tmp_encrypt(_: RoundTripConstructor, node: ScalarNode) -> TaggedScalar:
     """Constructor to encrypt YAML.
 
     Gets passed self as an argument from YAML.
     """
-    encrypted_value = VAULT.encrypt(plaintext=node.value).decode("utf-8")
+    vault_id_label = extract_label_from_tag(node.tag)
+    encrypted_value = VAULT.encrypt(plaintext=node.value, vault_id=vault_id_label).decode("utf-8")
     return TaggedScalar(value=encrypted_value, style="|", tag="!vault")
 
 
@@ -320,6 +354,10 @@ def write_data_to_temporary_file(data_to_write: Union[Path, StreamType]) -> Path
         yaml.dump(data_to_write, temp_file)
         return Path(temp_file.name)
 
+# Define a router function for the multi-constructor, since it takes 3 arguments
+def vault_tag_router(loader, _tag_suffix: str, node: ScalarNode) -> TaggedScalar:
+    """Router function to handle vault-related tags."""
+    return constructor_tmp_encrypt(loader, node)
 
 def encrypt_and_write_tmp_file(
     tmp_file: Path, final_file: Path, original_data: CommentedMap
@@ -329,8 +367,13 @@ def encrypt_and_write_tmp_file(
     # Register the constructor to let the yaml loader do the
     # reencrypting for you Adding it this late to avoid encryption step
     # before the editor opens
+    yaml.constructor.add_multi_constructor(
+        f"{DECRYPTED_TAG_NAME}{VAULT_ID_TAG_SYMBOL}",
+        vault_tag_router
+    )
     yaml.constructor.add_constructor(DECRYPTED_TAG_NAME, constructor_tmp_encrypt)
     yaml.constructor.add_constructor(INVALID_TAG_NAME, constructor_tmp_invalid)
+    # add constructor for each vault id?
 
 
     def prompt_user_action() -> str:
@@ -404,7 +447,20 @@ def parse_arguments() -> Namespace:
         "files", nargs="+", help="Specify one or more files that the script should open"
     )
     parser.add_argument(
-        "--ask-vault-pass", action="store_true", help="Specify the argument yourself"
+        '--vault-id', action='append',
+        help='Specify Vault ID(s) on the format label@sourcefile or label@prompt', default=[]
+    )
+    parser.add_argument(
+        "-J", "--ask-vault-pass", "--ask-vault-password", action="store_true",
+        help=("Get prompted for the default vault-id ",
+              "(basically the same as '--vault-id @prompt').",
+              "Only use this if everything in the file is encrypted with a single password"),
+    )
+    parser.add_argument(
+        "--vault-password-file",
+        help=("Specify the password file for the default vault-id ",
+              "(basically the same as '--vault-id @somefile.txt').",
+              "Only use this if everything in the file is encrypted with a single password"),
     )
 
     return parser.parse_args()
@@ -453,7 +509,11 @@ def main() -> None:
     # out how to pass it as an extra parameter to the add_constructor function
     # pylint: disable=global-statement
     global VAULT
-    VAULT = setup_vault(ask_vault_pass=args.ask_vault_pass)
+    VAULT = setup_vault(
+                ask_vault_pass=args.ask_vault_pass,
+                vault_password_file=args.vault_password_file,
+                vault_ids=args.vault_id
+    )
     logging.basicConfig(level=args.loglevel, format="%(levelname)s: %(message)s")
     main_loop(args.files, view_only=args.view)
 
