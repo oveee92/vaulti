@@ -3,14 +3,14 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "vaulti_oveee92"
-version = "0.1.3"
+name = "vaulti_ansible"
+version = "0.1.0"
 authors = [
     { name="Ove", email="oveee92@gmail.com" },
 ]
 dependencies = [
-    "ruamel.yaml>=0.18.6",
-    "ansible>=10.0.1",
+    "ruamel.yaml>=0.18.6", # Might work for older versions, remains to be tested
+    "ansible>=10.0.1", # Might work for older versions, remains to be tested
 ]
 keywords = ["ansible", "ansible-vault"]
 description = "Utility for Ansible Vault inline-encrypted variables"
@@ -26,7 +26,7 @@ classifiers = [
 license = {text = "MIT"}
 
 [project.scripts]
-vaulti = "vaulti_oveee92.vaulti:main"
+vaulti = "vaulti_ansible.vaulti:main"
 
 [project.urls]
 Homepage = "https://github.com/oveee92/vaulti"
