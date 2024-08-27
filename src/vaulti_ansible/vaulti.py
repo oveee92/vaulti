@@ -427,48 +427,57 @@ def parse_arguments() -> Namespace:
         "-r",
         "--view",
         action="store_true",
-        help=(
-            "Just print the decrypted output, don't open an editor."
-            "NOTE: This will print your secrets in plaintext"
-        ),
+        help="Just print the decrypted output, don't open an editor. " +
+            "NOTE: This will print your secrets in plaintext",
     )
+    parser.add_argument(
+        "-f",
+        "--force",
+        "--force-create",
+        action="store_true",
+        help="If the file you specified does not already exist, create it",
+    )
+
     parser.add_argument(
         "-v",
         "--verbose",
         action="store_const",
         dest="loglevel",
         const=logging.INFO,
-        help=(
-            "Print more details, for debugging."
-            "NOTE: This will print your secrets in plaintext"
-        ),
+        help="Print more details, for debugging. " +
+            "NOTE: This will print your secrets in plaintext",
     )
     parser.add_argument(
         "files", nargs="+", help="Specify one or more files that the script should open"
     )
     parser.add_argument(
         '--vault-id', action='append',
-        help='Specify Vault ID(s) on the format label@sourcefile or label@prompt', default=[]
+        help='Specify Vault ID(s) on the format label@sourcefile or label@prompt. ' +
+             "One vault id per '--vault-id' parameter", default=[]
     )
     parser.add_argument(
         "-J", "--ask-vault-pass", "--ask-vault-password", action="store_true",
-        help=("Get prompted for the default vault-id ",
-              "(basically the same as '--vault-id @prompt').",
-              "Only use this if everything in the file is encrypted with a single password"),
+        help="Get prompted for the default vault-id " +
+              "(basically the same as '--vault-id @prompt'). " +
+              "Only use this if everything in the file is encrypted with a single password",
     )
     parser.add_argument(
         "--vault-password-file",
-        help=("Specify the password file for the default vault-id ",
-              "(basically the same as '--vault-id @somefile.txt').",
-              "Only use this if everything in the file is encrypted with a single password"),
+        help="Specify the password file for the default vault-id " +
+              "(basically the same as '--vault-id @somefile.txt'). " +
+              "Only use this if everything in the file is encrypted with a single password",
     )
 
     return parser.parse_args()
 
 
-def main_loop(filenames: Iterable[Path], view_only: bool) -> None:
+def main_loop(filenames: Iterable[Path], view_only: bool, force_create: bool) -> None:
     """Loop through each file specified as params"""
     for filename in filenames:
+
+        # Has the file been created by this script?
+        file_force_created = False
+
         # Read the original file without custom constructors (for comparing
         # later) (Deepcopy doesn't seem to work, so just load it before
         # defining custom constructors
@@ -477,6 +486,16 @@ def main_loop(filenames: Iterable[Path], view_only: bool) -> None:
         except ScannerError:
             print(f"'{filename}' is not a valid YAML file", file=sys.stderr)
             sys.exit(1)
+        except FileNotFoundError as err:
+            if force_create:
+                original_data = open(filename, "x")
+                file_force_created = True
+            else:
+                print(
+                    f"File '{filename}' doesn't exist. Create non-existant files with -f.",
+                    file=sys.stderr
+                )
+                sys.exit(1)
 
         # Load the yaml file into memory (will now auto-decrypt vault because
         # of the constructors)
@@ -498,6 +517,10 @@ def main_loop(filenames: Iterable[Path], view_only: bool) -> None:
                     final_file=filename,
                     original_data=original_data,
                 )
+            else:
+                # If the file was created but never changed, delete it
+                if file_force_created:
+                    os.unlink(filename)
         finally:
             os.unlink(temp_filename)
 
@@ -519,7 +542,7 @@ def main() -> None:
     except KeyboardInterrupt:
         sys.exit(0)
     logging.basicConfig(level=args.loglevel, format="%(levelname)s: %(message)s")
-    main_loop(args.files, view_only=args.view)
+    main_loop(args.files, view_only=args.view, force_create=args.force)
 
 
 if __name__ == "__main__":
