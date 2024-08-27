@@ -509,11 +509,15 @@ def main() -> None:
     # out how to pass it as an extra parameter to the add_constructor function
     # pylint: disable=global-statement
     global VAULT
-    VAULT = setup_vault(
-                ask_vault_pass=args.ask_vault_pass,
-                vault_password_file=args.vault_password_file,
-                vault_ids=args.vault_id
-    )
+
+    try:
+        VAULT = setup_vault(
+                    ask_vault_pass=args.ask_vault_pass,
+                    vault_password_file=args.vault_password_file,
+                    vault_ids=args.vault_id
+        )
+    except KeyboardInterrupt:
+        sys.exit(0)
     logging.basicConfig(level=args.loglevel, format="%(levelname)s: %(message)s")
     main_loop(args.files, view_only=args.view)
 
