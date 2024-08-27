@@ -71,7 +71,7 @@ from ansible.cli import CLI
 from ansible.errors import AnsibleError
 from ansible.parsing.dataloader import DataLoader
 from ansible.parsing.vault import AnsibleVaultError
-from ansible.parsing.vault import VaultLib
+from ansible.parsing.vault import (VaultLib, VaultSecret)
 
 from ruamel.yaml import ScalarNode
 from ruamel.yaml import YAML
@@ -153,19 +153,29 @@ def constructor_tmp_decrypt(_: RoundTripConstructor, node: ScalarNode) -> Tagged
     return TaggedScalar(value=decrypted_value, style="", tag=decrypted_tag_with_label)
 
 
-def extract_label_from_tag(tag: str) -> Union[str, None]:
-    """Extracts the label from the YAML tag. Returns None if none is found."""
-    if ":" in tag:
-        return tag.split(":")[1]
-    return None
-
-def constructor_tmp_encrypt(_: RoundTripConstructor, node: ScalarNode) -> TaggedScalar:
+def constructor_tmp_encrypt(
+        _: RoundTripConstructor, node: ScalarNode, tag_suffix: str = None
+    ) -> TaggedScalar:
     """Constructor to encrypt YAML.
 
     Gets passed self as an argument from YAML.
     """
-    vault_id_label = extract_label_from_tag(node.tag)
-    encrypted_value = VAULT.encrypt(plaintext=node.value, vault_id=vault_id_label).decode("utf-8")
+
+    print(f"Encrypting {node.tag} {node.value} with vault id {tag_suffix}")
+
+    if tag_suffix is None:
+        secret = get_secret_for_vault_id(VAULT, "default")
+        vault_id = "default"
+    else:
+        secret = get_secret_for_vault_id(VAULT, tag_suffix)
+        vault_id = tag_suffix
+
+    # Seems to need explicit values for secret and vault_id even when you just want the default,
+    # It seems to just select the first VaultSecret object otherwise, which is rarely default.
+    encrypted_value = VAULT.encrypt(
+        plaintext=node.value, secret=secret, vault_id=vault_id
+    ).decode("utf-8")
+
     return TaggedScalar(value=encrypted_value, style="|", tag="!vault")
 
 
@@ -257,9 +267,24 @@ def compare_and_update(
         and is_tagged_scalar(reencrypted_data)
         and reencrypted_data.tag.value == "!vault"
     ):
-        # pylint: disable=line-too-long
-        if VAULT.decrypt(original_data.value) == VAULT.decrypt(reencrypted_data.value):  # type: ignore[union-attr]
+        if (
+            VAULT.decrypt(original_data.value) == VAULT.decrypt(reencrypted_data.value) and
+            extract_vault_label(original_data.value) == extract_vault_label(reencrypted_data.value)
+        ):
+            #print("Use original data")
+            #print(f"Original: {original_data}")
+            #print(f"Original decrypted: {VAULT.decrypt(original_data.value)}")
+            #print(f"Reencrypted: {reencrypted_data}")
+            #print(f"Reencrypted: {VAULT.decrypt(reencrypted_data.value)}")
+            #print("")
             return original_data
+        #else:
+        #    print("Use new data")
+        #    print(f"Original: {original_data}")
+        #    print(f"Original decrypted: {VAULT.decrypt(original_data.value)}")
+        #    print(f"Reencrypted: {reencrypted_data}")
+        #    print(f"Reencrypted: {VAULT.decrypt(reencrypted_data.value)}")
+        #    print("")
 
     return reencrypted_data
 
@@ -357,7 +382,7 @@ def write_data_to_temporary_file(data_to_write: Union[Path, StreamType]) -> Path
 # Define a router function for the multi-constructor, since it takes 3 arguments
 def vault_tag_router(loader, _tag_suffix: str, node: ScalarNode) -> TaggedScalar:
     """Router function to handle vault-related tags."""
-    return constructor_tmp_encrypt(loader, node)
+    return constructor_tmp_encrypt(loader, node, tag_suffix=_tag_suffix)
 
 def encrypt_and_write_tmp_file(
     tmp_file: Path, final_file: Path, original_data: CommentedMap
@@ -373,8 +398,6 @@ def encrypt_and_write_tmp_file(
     )
     yaml.constructor.add_constructor(DECRYPTED_TAG_NAME, constructor_tmp_encrypt)
     yaml.constructor.add_constructor(INVALID_TAG_NAME, constructor_tmp_invalid)
-    # add constructor for each vault id?
-
 
     def prompt_user_action() -> str:
         while True:
@@ -486,9 +509,11 @@ def main_loop(filenames: Iterable[Path], view_only: bool, force_create: bool) ->
         except ScannerError:
             print(f"'{filename}' is not a valid YAML file", file=sys.stderr)
             sys.exit(1)
-        except FileNotFoundError as err:
+        except FileNotFoundError:
             if force_create:
-                original_data = open(filename, "x")
+                #original_data = open(filename, "x", encoding="utf-8")
+                with open(filename, "x", encoding="utf-8") as empty_file:
+                    original_data = empty_file
                 file_force_created = True
             else:
                 print(
@@ -524,6 +549,22 @@ def main_loop(filenames: Iterable[Path], view_only: bool, force_create: bool) ->
         finally:
             os.unlink(temp_filename)
 
+def get_secret_for_vault_id(vault_lib: VaultLib, vault_id: str) -> VaultSecret:
+    """
+    Retrieves the VaultSecret associated with a specific vault-id from a VaultLib object.
+
+    :param vault_lib: The VaultLib object containing vault secrets.
+    :param vault_id: The vault-id label whose secret you want to retrieve.
+    :return: The VaultSecret associated with the specified vault-id.
+    """
+    # Access the _secrets attribute to get the dictionary of vault secrets
+    vault_secrets = vault_lib.secrets  # This is a list of tuples (vault_id, VaultSecret)
+
+    for id_label, secret in vault_secrets:
+        if id_label == vault_id:
+            return secret
+
+    raise ValueError(f"Vault secret with vault-id '{vault_id}' not found.")
 
 def main() -> None:
     """Parse arguments and set up logging before moving on to the main loop"""
