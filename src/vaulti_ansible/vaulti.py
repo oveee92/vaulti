@@ -435,10 +435,11 @@ def encrypt_and_write_tmp_file(
     # making it plaintext. Ensure the user is notified of this.
     with open(final_file, "r", encoding="utf-8") as file:
         content = file.read()
-    if re.search('.*#.*!ENCRYPT.*', content):
+    if re.search(r".*#.*" + re.escape(DECRYPTED_TAG_NAME) + r".*", content):
         print(
-            (f"WARNING! The final file '{final_file}' has secrets that were not reencrypted "
-                "due to being commented out in the editor!"),
+            (f"WARNING! The final file '{final_file}' seems to have secrets that were not "
+              "reencrypted due to being commented out in the editor! Search the file for "
+             f"instances of '{DECRYPTED_TAG_NAME}' that are commented out."),
             file=sys.stderr
         )
 
