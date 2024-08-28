@@ -233,12 +233,16 @@ def _process_commented_seq(
             ensure_newline(reencrypted_data, str(i))
         # If ansible vault fails, use the new data instead of crashing
         try:
-            reencrypted_data[i] = compare_and_update(
-                original_data=original_data[i],
-                reencrypted_data=reencrypted_data[i],
-            )
+            if i < len(original_data):
+                reencrypted_data[i] = compare_and_update(
+                    original_data=original_data[i],
+                    reencrypted_data=reencrypted_data[i],
+                )
+            else:
+                reencrypted_data[i] = reencrypted_data[i]
         except (AnsibleError, AnsibleVaultError):
             reencrypted_data[i] = reencrypted_data[i]
+
     return original_data, reencrypted_data
 
 
