@@ -161,7 +161,7 @@ def constructor_tmp_encrypt(
     Gets passed self as an argument from YAML.
     """
 
-    print(f"Encrypting {node.tag} {node.value} with vault id {tag_suffix}")
+    #print(f"Encrypting {node.tag} {node.value} with vault id {tag_suffix}")
 
     if tag_suffix is None:
         secret = get_secret_for_vault_id(VAULT, "default")
