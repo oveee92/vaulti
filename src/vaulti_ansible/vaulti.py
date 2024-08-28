@@ -55,6 +55,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import re
 
 from argparse import Namespace
 from pathlib import Path
@@ -275,20 +276,7 @@ def compare_and_update(
             VAULT.decrypt(original_data.value) == VAULT.decrypt(reencrypted_data.value) and
             extract_vault_label(original_data.value) == extract_vault_label(reencrypted_data.value)
         ):
-            #print("Use original data")
-            #print(f"Original: {original_data}")
-            #print(f"Original decrypted: {VAULT.decrypt(original_data.value)}")
-            #print(f"Reencrypted: {reencrypted_data}")
-            #print(f"Reencrypted: {VAULT.decrypt(reencrypted_data.value)}")
-            #print("")
             return original_data
-        #else:
-        #    print("Use new data")
-        #    print(f"Original: {original_data}")
-        #    print(f"Original decrypted: {VAULT.decrypt(original_data.value)}")
-        #    print(f"Reencrypted: {reencrypted_data}")
-        #    print(f"Reencrypted: {VAULT.decrypt(reencrypted_data.value)}")
-        #    print("")
 
     return reencrypted_data
 
@@ -442,6 +430,17 @@ def encrypt_and_write_tmp_file(
     # Then write the final data back to the original file
     with open(final_file, "w", encoding="utf-8") as file:
         yaml.dump(final_data, file)
+
+    # A common mistake is to comment out a decrypted secret line,
+    # making it plaintext. Ensure the user is notified of this.
+    with open(final_file, "r", encoding="utf-8") as file:
+        content = file.read()
+    if re.search('.*#.*!ENCRYPT.*', content):
+        print(
+            (f"WARNING! The final file '{final_file}' has secrets that were not reencrypted "
+                "due to being commented out in the editor!"),
+            file=sys.stderr
+        )
 
 
 def parse_arguments() -> Namespace:
