@@ -46,27 +46,30 @@ git clone https://github.com/oveee92/vaulti.git && cd vaulti
 
 # then EITHER install it with pip to get it installed into your PATH
 pip install .
-vaulti example_encrypted_data.yaml
+vaulti example/example_data.yml
 # OR just use it directly
-./src/vaulti_ansible/vaulti.py example_encrypted_data.yaml
+./src/vaulti_ansible/vaulti.py example/example_data.yml
 
 # If you want to use a password file, you can set it as a variable
-export ANSIBLE_VAULT_PASSWORD_FILE=.example_vault_pass.txt
+export ANSIBLE_VAULT_PASSWORD_FILE=example/.default_vault_pass.txt
 # OR specify it on the command line
-vaulti example_encrypted_data.yaml --vault-password-file .example_vault_pass.txt
+vaulti example/example_data.yml --vault-password-file example/.default_vault_pass.txt
 
 # To see the variables encrypted with the foo vault ID, load it too
-vaulti example_encrypted_data.yaml --vault-id foo@prompt # Password is 'foo' too
+vaulti example/example_data.yml --vault-id foo@prompt
+vaulti example/example_data.yml --vault-password-file example/.default_vault_pass.txt --vault-id foo@example/.foo_vault_pass.txt
 
 # Make some changes to existing variables, create some new ones or remove some tags
 # Save and quit, then open it regularly to see what changed, or just run git diff to see what happened
 git diff example_encrypted_data.yaml
 ```
 
-Now you can remove the `!ENCRYPT` tag to decrypt and add new `!ENCRYPT` tags to encrypt, before saving and quitting!
-You can also add new variables, both with and without the tag, and comment whereever the yaml spec lets you.
-Block scalars also work, if you need to include newlines (`|`, `>`, `|-`, etc.), which can be useful when you want to
-encrypt private keys or other multi-line things.
+When inside the editor, you can:
+
+- remove the `!ENCRYPT` tag to decrypt and add new `!ENCRYPT` tags to whatever you want to encrypt.
+- add new variables, both with and without the `!ENCRYPT` tag, and add comments whereever the yaml spec lets you.
+- encrypt block scalars if you need to include newlines (`|`, `>`, `|-`, etc.), which can be useful when you want to encrypt private keys or other multi-line things.
+- add, change or remove the label from the `!ENCRYPT:label` tag to encrypt, reencrypt with a different vault id or decrypt
 
 ## Why this exists
 
@@ -89,29 +92,29 @@ SomePasswordOrSomething # <Ctrl-D>, NOT <enter> unless you need the newline encr
 # Then copy the output into your yaml file, making sure the indentation is still ok
 
 ## To edit
-# Just encrypt a new string and replace it
+# Encrypt a new string and replace it
 
 ## To decrypt
 ansible -i the/relevant/inventory the-relevant-host -m debug -a "var=TheAnsibleVaultedVariable"
 ```
 
-Yikes...
+Yikes... not really easy to remember, and pretty error-prone.
 
-If you wish you had `ansible-vault edit` for partially encrypted files, that is what this utility is trying to do.
+**If you wish you had `ansible-vault edit` for partially encrypted files, that is what this utility is trying to do.**
 
 ## Why you should NOT use this
 
 This is created by a sysadmin, not a professional programmer. It is getting better over time, but there may still be edge cases where
-strange things may happen to the file you are editing. It isn't likely, and I've used it without issue for some time, but if you don't
-have your files in a git repo with the ability to revert files easily, please dont use this just yet :)
+strange things could happen to the file you are editing. It isn't likely, and I've used it without issue for some time, but if you don't
+have your files in a git repo with the ability to revert files easily, please dont use this just yet (or just initialize a git repo first!)
 
 Also, if you try to change the yaml tags between `!COULD_NOT_DECRYPT`, `!vault` and `!ENCRYPT` when editing, you'll probably end up with unencrypted
-or broken variables. Stick to adding or removing the `!ENCRYPT` tags and their labels only.
+or broken variables. Stick to adding or removing the `!ENCRYPT` tags and their labels only for a good time.
 
 ## Caveats
 
 Since it uses the fantastic (yet sparsely documented) `ruamel.yaml`, and the yaml spec is pretty extensive, this utility does
-make some "non-negotiable" changes to your files that you should be aware of:
+make some "non-negotiable" changes to your files that you should be aware of, that happens when we load and parse the yaml data:
 
 - Indentation for your multiline strings will always end up with a fixed (default 2) spaces relative to the variable it belongs to;
   i.e. not the 10 spaces indented or whatever the default is from the `ansible-vault encrypt_string` output. This is good for consistency, but it does mean that the indentation
@@ -122,6 +125,8 @@ make some "non-negotiable" changes to your files that you should be aware of:
 Also, there are a few "opinionated" things I've hardcoded, which are relatively easy to comment out or change if you wish it.
 
 - Header (`---`) and footer (`...`) will be added automatically to the variable file if it doesn't exist.
+- A tab/indent equals two spaces
+- The hyphen starting each list items is indented, not inline with the parent key
 - An extra newline is added below the ansible-vault output, for readability.
 - No automatic line breaks for long values.
 
