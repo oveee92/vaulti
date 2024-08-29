@@ -6,84 +6,81 @@ Utility to edit, create, encrypt and decrypt ansible-vault in-line encrypted var
 
 ```shell
 ./vaulti file1 # If you want it to use standard ansible environment vars for the vault password
-./vaulti file1 file2 # Define multiple files if you wish
+./vaulti file1 [file2] [file3] [...] # Define multiple files if you wish
 ./vaulti file1 --ask-vault-pass # If you want to specify the password on the CLI
+./vaulti file1 --ask-vault-pass --vault-id mylabel@prompt # You can also specify vault ids
 ./vaulti file1 -r # Prints the output, doesn't let you edit. Useful for setting up custom git diff, etc.
 ```
 
-You can add or remove the `!ENCRYPTED` tags as you wish, and it will encrypt or decrypt for you.
+See ./vaulti -h for more usage details
 
-If it finds vaulted variables it cannot decrypt, it shows you with a tag like `!VAULT_INVALID`. It returns unchanged to `!vault` when you exit the editor.
+## About
+
+This utility opens an editor where the encrypted variables have been decrypted!
+The "secret" variables are indicated with a special tag, `!ENCRYPT`.
+
+You can use the standard ansible methods of defining a vault password or vault password file.
+
+You can add or remove the `!ENCRYPT` tags as you wish, and it will encrypt or decrypt for you.
+
+It supports different vault ids, by using the standard syntax used by ansible-vault, like `--vault-id mylabel@prompt --vault-id myotherlabel@prompt`.
+
+Secrets decrypted with the non-default ID will be shown in the tag as `!ENCRYPT:mylabel`. You can also set these labels yourself, as long as 
+you actually loaded the relevant vault-id when starting the utility.
+
+If it finds vaulted variables it cannot decrypt for any reason, it leaves them unencrypted, but changes the tag to `!COULD_NOT_DECRYPT`.
+The tag returns to `!vault` when you exit the editor.
+
+There are some quality of life features built in, such as:
+
+- if you edit the file to some invalid yaml, you'll get the chance to re-open the file and try again
+- ditto if you try to encrypt with a vault id that you didn't load when starting
+- if you comment out a line while it is decrypted, it will not be reencrypted, but it will produce a warning.
+
 
 ## Example
 
 ```shell
-# You can test this by cloning the repo, cd into it and running
+# You can test this by cloning the repo, cd into it
 git clone https://github.com/oveee92/vaulti.git && cd vaulti
+
+# then EITHER install it with pip to get it installed into your PATH
+pip install .
+vaulti example_encrypted_data.yaml
+# OR just use it directly
+./src/vaulti_ansible/vaulti.py example_encrypted_data.yaml
+
+# If you want to use a password file, you can set it as a variable
 export ANSIBLE_VAULT_PASSWORD_FILE=.example_vault_pass.txt
-./vaulti example_encrypted_data.yaml
+# OR specify it on the command line
+vaulti example_encrypted_data.yaml --vault-password-file .example_vault_pass.txt
+
+# To see the variables encrypted with the foo vault ID, load it too
+vaulti example_encrypted_data.yaml --vault-id foo@prompt # Password is 'foo' too
+
 # Make some changes to existing variables, create some new ones or remove some tags
 # Save and quit, then open it regularly to see what changed, or just run git diff to see what happened
 git diff example_encrypted_data.yaml
 ```
 
-The partial vault-encrypted file looks like this:
-
-```yaml
-enc_variable: !vault |
-  $ANSIBLE_VAULT;1.1;AES256
-  66373364636166306131353930333262303162396534373632346137316437636338333431616...
-
-plain_variable: gonna
-
-list_variable: # Encrypted variables as list items might not be valid for ansible though
-  - !vault |
-    $ANSIBLE_VAULT;1.1;AES256
-    66323661363266353635316639333063333134633831613763333031646566323531393238353...
-
-
-list_of_dicts:
-  - plaintext: you
-    encrypted: !vault |
-      $ANSIBLE_VAULT;1.1;AES256
-      39323233613537376363333139616137653065663334366538643631353333653833666163663...
-
-# (...)
-```
-
-Running `./vaulti myfile.yml` opens your editor like this
-
-```yaml
-enc_variable: !ENCRYPTED Never
-
-plain_variable: gonna
-
-list_variable: # Encrypted variables as list items might not be valid for ansible though
-  - !ENCRYPTED give
-
-list_of_dicts:
-  - plaintext: you
-    encrypted: !ENCRYPTED up
-
-# (...)
-```
-
-Now you can remove the `!ENCRYPTED` tag to decrypt and add new `!ENCRYPT` tags to encrypt, before saving and quitting!
+Now you can remove the `!ENCRYPT` tag to decrypt and add new `!ENCRYPT` tags to encrypt, before saving and quitting!
 You can also add new variables, both with and without the tag, and comment whereever the yaml spec lets you.
-Block scalars also work, if you need to include newlines (`|`, `>`, `|-`, etc.)
+Block scalars also work, if you need to include newlines (`|`, `>`, `|-`, etc.), which can be useful when you want to
+encrypt private keys or other multi-line things.
 
 ## Why this exists
 
-Ansible-vault works fine for encrypting/decrypting/editing whole files, but there are times you don't want to encrypt entire files:
+Ansible-vault works fine for encrypting/decrypting/editing whole files, but there are times you don't want to encrypt entire files; for example:
 
-If you use AWX/AAP, having vault-encrypted files is difficult; you either have to
+If you use AWX/AAP, having vault-encrypted files is a bit difficult; you either have to
 - include the vault password in whichever container/EE you are running the playbooks (therefore requiring a custom image), or
 - decrypt the file when syncing the inventory (making all your secrets plaintext for those with high enough access in AWX)
 
-If your control repo is getting large, with lots of hostvars and groupvars, and you want to find out where certain variables are defined,
-you won't be able to search vault-encrypted files, since their key is also encrypted.
+If your control repo is getting large, with lots of host vars and group vars, and you want to find out where certain variables are defined,
+you won't be able to search full vault-encrypted files easily, since their key is also encrypted.
 
-So you try inline encryption, but using it with `ansible-vault edit <file>` is no longer possible, you have to do something like this:
+So you try inline encryption, which solves these problems, but using it with `ansible-vault edit <file>` is no longer possible...
+you have to do something like this:
 
 ```shell
 ## To encrypt
@@ -104,13 +101,12 @@ If you wish you had `ansible-vault edit` for partially encrypted files, that is 
 
 ## Why you should NOT use this
 
-This is created by a sysadmin, not a professional programmer. It is possible that an unhandled exception thrown or edge-case
-schenario will overwrite the partially encrypted yaml file with junk or empty data. It isn't likely, and I've used it without
-issue for some time, but if you don't have your files in a git repo with the ability to revert files easily,
-please dont use this just yet :)
+This is created by a sysadmin, not a professional programmer. It is getting better over time, but there may still be edge cases where
+strange things may happen to the file you are editing. It isn't likely, and I've used it without issue for some time, but if you don't
+have your files in a git repo with the ability to revert files easily, please dont use this just yet :)
 
-Also, if you try to change the yaml tags between `!VAULT_INVALID`, `!vault` and `!ENCRYPTED` when editing, you'll probably end up with unencrypted
-or broken variables. Stick to adding or removing the `!ENCRYPTED` tags only.
+Also, if you try to change the yaml tags between `!COULD_NOT_DECRYPT`, `!vault` and `!ENCRYPT` when editing, you'll probably end up with unencrypted
+or broken variables. Stick to adding or removing the `!ENCRYPT` tags and their labels only.
 
 ## Caveats
 
@@ -118,8 +114,9 @@ Since it uses the fantastic (yet sparsely documented) `ruamel.yaml`, and the yam
 make some "non-negotiable" changes to your files that you should be aware of:
 
 - Indentation for your multiline strings will always end up with a fixed (default 2) spaces relative to the variable it belongs to;
-  i.e. not the 10 spaces indented or whatever the default is from the `ansible-vault encrypt_string` output. This is good for consistency, but it means the indentation
-  of the inline-encrypted variables will probably change the first time you use this. If you don't change the decrypted value it should remain the same though, except for the indent change.
+  i.e. not the 10 spaces indented or whatever the default is from the `ansible-vault encrypt_string` output. This is good for consistency, but it does mean that the indentation
+  of your inline-encrypted variables will probably change the first time you use this if you've previously used `ansible-vault encrypt_string` to generate the encrypted strings.
+  If you don't change the decrypted value it should remain the same though, except for the indent change.
 - Extra whitespaces will be removed whereever it is found (for example `key:  value` -> `key: value`)
 
 Also, there are a few "opinionated" things I've hardcoded, which are relatively easy to comment out or change if you wish it.
@@ -128,9 +125,13 @@ Also, there are a few "opinionated" things I've hardcoded, which are relatively 
 - An extra newline is added below the ansible-vault output, for readability.
 - No automatic line breaks for long values.
 
-I have not yet implemented anything with different vault IDs, because I've never used it...
+Finally, a word on diffs. The script revolves around decrypting and reencrypting the variables, which means that every time you open a file with it, the
+encrypted string changes (different salt each time). Part of the script is therefore dedicated to looping through the re-encrypted file, comparing it with
+the original decrypted data, and preferring the old one if the actual value hasn't changed. That means that any git diff produced by these changes will
+usually just involve the relevant changed variables, but it is a "best effort" process. If you change the number encrypted variables in a list, the items
+whose list index was changed will be re-encrypted with a new salt, since the original value cannot be found. Same goes for any variables where you change
+the key name.
 
-I have not tested all possible ways of defining ansible-vault credentials, just the environment variable `ANSIBLE_VAULT_PASSWORD_FILE` and `--ask-vault-pass`
 
 ## Dependencies
 
