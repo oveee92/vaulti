@@ -409,8 +409,12 @@ def encrypt_and_write_tmp_file(
             try:
                 edited_data = yaml.load(file)
                 is_file_parsed = True
-            except (ScannerError, ParserError):
-                print("The edited file is no longer valid YAML. What would you like to do?")
+            except (ScannerError, ParserError, ValueError) as err:
+                if err is ValueError:
+                    print(f"Encountered Vault ID which has not been loaded. Error is:\n{err}")
+                else:
+                    print(f"The edited file is no longer valid YAML. Error is:\n{err}")
+                print("What would you like to do?")
                 user_retry = prompt_user_action()
 
                 if user_retry == 'e':
