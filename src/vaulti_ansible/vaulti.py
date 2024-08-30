@@ -327,8 +327,12 @@ def read_encrypted_yaml_file(file: Path) -> Any:
 def read_yaml_file(file: Path) -> Any:
     """Load the yaml file"""
     yaml = setup_yaml()
-    with open(file, "r", encoding="utf-8") as file_to_read:
-        return yaml.load(file_to_read)
+    try:
+        with open(file, "r", encoding="utf-8") as file_to_read:
+            return yaml.load(file_to_read)
+    except IsADirectoryError as err:
+        print(f"Specified file is a directory. Error is:\n{err}", file=sys.stderr)
+        sys.exit(1)
 
 
 def display_yaml_data_and_exit(yaml_data: Union[Path, StreamType]) -> None:
@@ -423,7 +427,7 @@ def encrypt_and_write_tmp_file(
                     print("Changes discarded. Exiting")
                     sys.exit(0)
             except AnsibleError as err:
-                print(f"AnsibleError: {err}", file=sys.stderr)
+                print(f"AnsibleError. Error is:\n{err}", file=sys.stderr)
                 sys.exit(1)
 
     # Loop through all the values of the new data, making sure that
@@ -515,7 +519,7 @@ def main_loop(filenames: Iterable[Path], view_only: bool, force_create: bool) ->
         try:
             original_data = read_yaml_file(filename)
         except ScannerError:
-            print(f"'{filename}' is not a valid YAML file", file=sys.stderr)
+            print(f"'{filename}' is not a valid YAML file. Error is\n{err}", file=sys.stderr)
             sys.exit(1)
         except FileNotFoundError:
             if force_create:
