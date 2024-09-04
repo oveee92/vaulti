@@ -107,15 +107,23 @@ def setup_vault(ask_vault_pass: bool, vault_password_file: str = None,
     if vault_ids is None:
         # This variable might exist, depending on the ansible configuration. Ignore it with pylint
         vault_ids = C.DEFAULT_VAULT_IDENTITY_LIST  # pylint: disable=no-member
+    else:
+        print(vault_ids)
     # If a vault password file is specified, add it to the default id
     if vault_password_file:
         vault_ids.append(f"@{vault_password_file}")
     # Set up vault
-    vault_secret = CLI.setup_vault_secrets(
-        loader=loader,
-        vault_ids=vault_ids,
-        ask_vault_pass=ask_vault_pass,
-    )
+    try:
+        vault_secret = CLI.setup_vault_secrets(
+            loader=loader,
+            vault_ids=vault_ids,
+            ask_vault_pass=ask_vault_pass,
+        )
+    except AnsibleError as err:
+        print(f"Could not decrypt. Error is:\n{err}", file=sys.stderr)
+        print("Make sure you point to a valid file is you are using the "
+              "$ANSIBLE_VAULT_PASSWORD_FILE environment variable", file=sys.stderr)
+        sys.exit(1)
     return VaultLib(vault_secret)
 
 
@@ -518,7 +526,7 @@ def main_loop(filenames: Iterable[Path], view_only: bool, force_create: bool) ->
         # defining custom constructors
         try:
             original_data = read_yaml_file(filename)
-        except ScannerError:
+        except ScannerError as err:
             print(f"'{filename}' is not a valid YAML file. Error is\n{err}", file=sys.stderr)
             sys.exit(1)
         except FileNotFoundError:
