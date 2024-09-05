@@ -125,7 +125,7 @@ def setup_vault(ask_vault_pass: bool, vault_password_file: str = None,
     except AnsibleError as err:
         print(f"Could not decrypt. Error is:\n{err}", file=sys.stderr)
         # Most likely issue
-        print("Make sure you point to a valid file is you are using the "
+        print("Make sure you point to a valid file if you are using the "
               "$ANSIBLE_VAULT_PASSWORD_FILE environment variable", file=sys.stderr)
         sys.exit(1)
     return VaultLib(vault_secret)
