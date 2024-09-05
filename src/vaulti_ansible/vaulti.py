@@ -93,6 +93,7 @@ from ruamel.yaml.parser import ParserError
 
 DECRYPTED_TAG_NAME = "!ENCRYPT"
 INVALID_TAG_NAME = "!COULD_NOT_DECRYPT"
+TAG_NOT_LOADED_NAME = "!TAG_NOT_LOADED"
 VAULT_ID_TAG_SYMBOL = ":" # The symbol to denote the ansible-vault id
 StreamType = Union[BinaryIO, IO[str], StringIO]
 VAULT = None
@@ -107,8 +108,7 @@ def setup_vault(ask_vault_pass: bool, vault_password_file: str = None,
     if vault_ids is None:
         # This variable might exist, depending on the ansible configuration. Ignore it with pylint
         vault_ids = C.DEFAULT_VAULT_IDENTITY_LIST  # pylint: disable=no-member
-    else:
-        print(vault_ids)
+
     # If a vault password file is specified, add it to the default id
     if vault_password_file:
         vault_ids.append(f"@{vault_password_file}")
@@ -142,24 +142,37 @@ def constructor_tmp_decrypt(_: RoundTripConstructor, node: ScalarNode) -> Tagged
 
     Gets passed self as an argument from YAML.
     """
+
+    label = extract_vault_label(node.value)
+
     try:
         # pylint: disable=possibly-used-before-assignment
         decrypted_value = VAULT.decrypt(vaulttext=node.value).decode("utf-8")
-    except (AnsibleError, AnsibleVaultError):
-        # If the value cannot be decrypted for some reason, just use the
-        # original value and add an invalid tag
-        return TaggedScalar(value=node.value, style="|", tag=INVALID_TAG_NAME)
 
-    label = extract_vault_label(node.value)
-    if label != "":
-        decrypted_tag_with_label = f"{DECRYPTED_TAG_NAME}{VAULT_ID_TAG_SYMBOL}{label}"
-    else:
-        decrypted_tag_with_label = DECRYPTED_TAG_NAME
+        if label != "":
+            decrypted_tag_with_label = f"{DECRYPTED_TAG_NAME}{VAULT_ID_TAG_SYMBOL}{label}"
+        else:
+            decrypted_tag_with_label = DECRYPTED_TAG_NAME
 
-    # Make it easier to read decrypted variables with newlines in it
-    if "\n" in decrypted_value:
-        return TaggedScalar(value=decrypted_value, style="|", tag=decrypted_tag_with_label)
-    return TaggedScalar(value=decrypted_value, style="", tag=decrypted_tag_with_label)
+        # Make it easier to read decrypted variables with newlines in it
+        if "\n" in decrypted_value:
+            return TaggedScalar(value=decrypted_value, style="|", tag=decrypted_tag_with_label)
+        return TaggedScalar(value=decrypted_value, style="", tag=decrypted_tag_with_label)
+
+    except (AnsibleError, AnsibleVaultError) as err:
+        # If there is no label, it is probably just a variable encrypted with the wrong key
+        if label == "":
+            return TaggedScalar(value=node.value, style="|", tag=INVALID_TAG_NAME)
+        # If there is a label, it is probably because you just forgot to load the vault id,
+        # and the temporary tag name might give you a hint
+        else:
+            return TaggedScalar(value=node.value, style="|", tag=f"{TAG_NOT_LOADED_NAME}{VAULT_ID_TAG_SYMBOL}{label}")
+            #try:
+            #    is_vault_loaded = get_secret_for_vault_id(VAULT, label)
+            #    return TaggedScalar(value=node.value, style="|", tag=f"{TAG_NOT_LOADED_NAME}{VAULT_ID_TAG_SYMBOL}{label}")
+            #except ValueError:
+            #    return TaggedScalar(value=node.value, style="|", tag=f"{TAG_NOT_LOADED_NAME}{VAULT_ID_TAG_SYMBOL}{label}")
+
 
 
 def constructor_tmp_encrypt(
@@ -388,6 +401,9 @@ def vault_tag_router(loader, _tag_suffix: str, node: ScalarNode) -> TaggedScalar
     """Router function to handle vault-related tags."""
     return constructor_tmp_encrypt(loader, node, tag_suffix=_tag_suffix)
 
+def constructor_tmp_invalid_multi(loader, _tag_suffix: str, node: ScalarNode) -> TaggedScalar:
+    return constructor_tmp_invalid(loader, node)
+
 def encrypt_and_write_tmp_file(
     tmp_file: Path, final_file: Path, original_data: CommentedMap
 ) -> None:
@@ -399,6 +415,10 @@ def encrypt_and_write_tmp_file(
     yaml.constructor.add_multi_constructor(
         f"{DECRYPTED_TAG_NAME}{VAULT_ID_TAG_SYMBOL}",
         vault_tag_router
+    )
+    yaml.constructor.add_multi_constructor(
+        TAG_NOT_LOADED_NAME,
+        constructor_tmp_invalid_multi
     )
     yaml.constructor.add_constructor(DECRYPTED_TAG_NAME, constructor_tmp_encrypt)
     yaml.constructor.add_constructor(INVALID_TAG_NAME, constructor_tmp_invalid)
