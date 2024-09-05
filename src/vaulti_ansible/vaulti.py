@@ -91,18 +91,20 @@ from ruamel.yaml.scanner import ScannerError
 from ruamel.yaml.parser import ParserError
 
 
-DECRYPTED_TAG_NAME = "!ENCRYPT"
-INVALID_TAG_NAME = "!COULD_NOT_DECRYPT"
-INVALID_VAULT_FORMAT_ERROR_NAME = "!VAULT_FORMAT_ERROR"
-TAG_NOT_LOADED_NAME = "!TAG_NOT_LOADED"
-VAULT_ID_TAG_SYMBOL = ":" # The symbol to denote the ansible-vault id
+# Definitions for the temporary tag names
+# should be descriptive enough to indicate the problem
+TAG_NAME_DECRYPTED_SUCCESS = "!ENCRYPT"
+TAG_NAME_COULD_NOT_DECRYPT = "!COULD_NOT_DECRYPT"
+TAG_NAME_INVALID_VAULT_FORMAT = "!VAULT_FORMAT_ERROR"
+TAG_NAME_UNKNOWN_LABEL = "!UNKNOWN_VAULT_ID_LABEL"
+TAG_SEPARATOR_VAULTID = ":" # The symbol to denote the ansible-vault id
+
 StreamType = Union[BinaryIO, IO[str], StringIO]
 VAULT = None
 
-
 def setup_vault(ask_vault_pass: bool, vault_password_file: str = None,
                 vault_ids: list = None) -> VaultLib:
-    """Ansible Vault boilerplate"""
+    """Set up the vault object to use for encryption/decyption. Handles prompting, etc. """
     loader = DataLoader()
 
     # If no custom vauld ids are specified, just go with the default
@@ -122,6 +124,7 @@ def setup_vault(ask_vault_pass: bool, vault_password_file: str = None,
         )
     except AnsibleError as err:
         print(f"Could not decrypt. Error is:\n{err}", file=sys.stderr)
+        # Most likely issue
         print("Make sure you point to a valid file is you are using the "
               "$ANSIBLE_VAULT_PASSWORD_FILE environment variable", file=sys.stderr)
         sys.exit(1)
@@ -151,9 +154,9 @@ def constructor_tmp_decrypt(_: RoundTripConstructor, node: ScalarNode) -> Tagged
         decrypted_value = VAULT.decrypt(vaulttext=node.value).decode("utf-8")
 
         if label != "":
-            decrypted_tag_with_label = f"{DECRYPTED_TAG_NAME}{VAULT_ID_TAG_SYMBOL}{label}"
+            decrypted_tag_with_label = f"{TAG_NAME_DECRYPTED_SUCCESS}{TAG_SEPARATOR_VAULTID}{label}"
         else:
-            decrypted_tag_with_label = DECRYPTED_TAG_NAME
+            decrypted_tag_with_label = TAG_NAME_DECRYPTED_SUCCESS
 
         # Make it easier to read decrypted variables with newlines in it
         if "\n" in decrypted_value:
@@ -164,7 +167,7 @@ def constructor_tmp_decrypt(_: RoundTripConstructor, node: ScalarNode) -> Tagged
         # If there is no label, it is probably just a variable encrypted with the wrong key
 
         if label == "":
-            return TaggedScalar(value=node.value, style="|", tag=INVALID_TAG_NAME)
+            return TaggedScalar(value=node.value, style="|", tag=TAG_NAME_COULD_NOT_DECRYPT)
         # If there is a label, it is probably because you just forgot to load the vault id,
         # and the temporary tag name might give you a hint
 
@@ -173,17 +176,17 @@ def constructor_tmp_decrypt(_: RoundTripConstructor, node: ScalarNode) -> Tagged
             get_secret_for_vault_id(VAULT, label)
             # If you did load the vault-id and it still failed, it is probably
             # just the wrong password
-            return TaggedScalar(value=node.value, style="|", tag=INVALID_TAG_NAME)
+            return TaggedScalar(value=node.value, style="|", tag=TAG_NAME_COULD_NOT_DECRYPT)
         except ValueError:
             # If you did not load it, mention that using the tag
             return TaggedScalar(
                 value=node.value, style="|",
-                tag=f"{TAG_NOT_LOADED_NAME}{VAULT_ID_TAG_SYMBOL}{label}"
+                tag=f"{TAG_NAME_UNKNOWN_LABEL}{TAG_SEPARATOR_VAULTID}{label}"
             )
 
     except AnsibleError:
         # If the format is wrong, add that as a separate tag
-        return TaggedScalar(value=node.value, style="|", tag=INVALID_VAULT_FORMAT_ERROR_NAME)
+        return TaggedScalar(value=node.value, style="|", tag=TAG_NAME_INVALID_VAULT_FORMAT)
 
 
 
@@ -426,19 +429,19 @@ def encrypt_and_write_tmp_file(
     # reencrypting for you Adding it this late to avoid encryption step
     # before the editor opens
     yaml.constructor.add_multi_constructor(
-        f"{DECRYPTED_TAG_NAME}{VAULT_ID_TAG_SYMBOL}",
+        f"{TAG_NAME_DECRYPTED_SUCCESS}{TAG_SEPARATOR_VAULTID}",
         constructor_tmp_encrypt_multi
     )
     yaml.constructor.add_multi_constructor(
-        TAG_NOT_LOADED_NAME,
+        TAG_NAME_UNKNOWN_LABEL,
         constructor_tmp_invalid_multi
     )
     yaml.constructor.add_multi_constructor(
-        INVALID_VAULT_FORMAT_ERROR_NAME,
+        TAG_NAME_INVALID_VAULT_FORMAT,
         constructor_tmp_invalid_multi
     )
-    yaml.constructor.add_constructor(DECRYPTED_TAG_NAME, constructor_tmp_encrypt)
-    yaml.constructor.add_constructor(INVALID_TAG_NAME, constructor_tmp_invalid)
+    yaml.constructor.add_constructor(TAG_NAME_DECRYPTED_SUCCESS, constructor_tmp_encrypt)
+    yaml.constructor.add_constructor(TAG_NAME_COULD_NOT_DECRYPT, constructor_tmp_invalid)
 
     def prompt_user_action() -> str:
         while True:
@@ -488,11 +491,11 @@ def encrypt_and_write_tmp_file(
     # making it plaintext. Ensure the user is notified of this.
     with open(final_file, "r", encoding="utf-8") as file:
         content = file.read()
-    if re.search(r".*#.*" + re.escape(DECRYPTED_TAG_NAME) + r".*", content):
+    if re.search(r".*#.*" + re.escape(TAG_NAME_DECRYPTED_SUCCESS) + r".*", content):
         print(
             (f"WARNING! The final file '{final_file}' seems to have secrets that were not "
               "reencrypted due to being commented out in the editor! Search the file for "
-             f"instances of '{DECRYPTED_TAG_NAME}' that are commented out."),
+             f"instances of '{TAG_NAME_DECRYPTED_SUCCESS}' that are commented out."),
             file=sys.stderr
         )
 
