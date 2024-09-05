@@ -1,2 +1,3 @@
 dist/
 .venv/
+tests/__pycache__/
