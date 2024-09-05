@@ -93,6 +93,7 @@ from ruamel.yaml.parser import ParserError
 
 DECRYPTED_TAG_NAME = "!ENCRYPT"
 INVALID_TAG_NAME = "!COULD_NOT_DECRYPT"
+INVALID_VAULT_FORMAT_ERROR_NAME = "!VAULT_FORMAT_ERROR"
 TAG_NOT_LOADED_NAME = "!TAG_NOT_LOADED"
 VAULT_ID_TAG_SYMBOL = ":" # The symbol to denote the ansible-vault id
 StreamType = Union[BinaryIO, IO[str], StringIO]
@@ -159,7 +160,7 @@ def constructor_tmp_decrypt(_: RoundTripConstructor, node: ScalarNode) -> Tagged
             return TaggedScalar(value=decrypted_value, style="|", tag=decrypted_tag_with_label)
         return TaggedScalar(value=decrypted_value, style="", tag=decrypted_tag_with_label)
 
-    except (AnsibleError, AnsibleVaultError):
+    except AnsibleVaultError:
         # If there is no label, it is probably just a variable encrypted with the wrong key
 
         if label == "":
@@ -179,6 +180,10 @@ def constructor_tmp_decrypt(_: RoundTripConstructor, node: ScalarNode) -> Tagged
                 value=node.value, style="|",
                 tag=f"{TAG_NOT_LOADED_NAME}{VAULT_ID_TAG_SYMBOL}{label}"
             )
+
+    except AnsibleError:
+        # If the format is wrong, add that as a separate tag
+        return TaggedScalar(value=node.value, style="|", tag=INVALID_VAULT_FORMAT_ERROR_NAME)
 
 
 
@@ -426,6 +431,10 @@ def encrypt_and_write_tmp_file(
     )
     yaml.constructor.add_multi_constructor(
         TAG_NOT_LOADED_NAME,
+        constructor_tmp_invalid_multi
+    )
+    yaml.constructor.add_multi_constructor(
+        INVALID_VAULT_FORMAT_ERROR_NAME,
         constructor_tmp_invalid_multi
     )
     yaml.constructor.add_constructor(DECRYPTED_TAG_NAME, constructor_tmp_encrypt)
