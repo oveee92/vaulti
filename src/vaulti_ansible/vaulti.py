@@ -159,19 +159,26 @@ def constructor_tmp_decrypt(_: RoundTripConstructor, node: ScalarNode) -> Tagged
             return TaggedScalar(value=decrypted_value, style="|", tag=decrypted_tag_with_label)
         return TaggedScalar(value=decrypted_value, style="", tag=decrypted_tag_with_label)
 
-    except (AnsibleError, AnsibleVaultError) as err:
+    except (AnsibleError, AnsibleVaultError):
         # If there is no label, it is probably just a variable encrypted with the wrong key
+
         if label == "":
             return TaggedScalar(value=node.value, style="|", tag=INVALID_TAG_NAME)
         # If there is a label, it is probably because you just forgot to load the vault id,
         # and the temporary tag name might give you a hint
-        else:
-            return TaggedScalar(value=node.value, style="|", tag=f"{TAG_NOT_LOADED_NAME}{VAULT_ID_TAG_SYMBOL}{label}")
-            #try:
-            #    is_vault_loaded = get_secret_for_vault_id(VAULT, label)
-            #    return TaggedScalar(value=node.value, style="|", tag=f"{TAG_NOT_LOADED_NAME}{VAULT_ID_TAG_SYMBOL}{label}")
-            #except ValueError:
-            #    return TaggedScalar(value=node.value, style="|", tag=f"{TAG_NOT_LOADED_NAME}{VAULT_ID_TAG_SYMBOL}{label}")
+
+        try:
+            # Try this and see if it fails, we dont care about what it returns
+            get_secret_for_vault_id(VAULT, label)
+            # If you did load the vault-id and it still failed, it is probably
+            # just the wrong password
+            return TaggedScalar(value=node.value, style="|", tag=INVALID_TAG_NAME)
+        except ValueError:
+            # If you did not load it, mention that using the tag
+            return TaggedScalar(
+                value=node.value, style="|",
+                tag=f"{TAG_NOT_LOADED_NAME}{VAULT_ID_TAG_SYMBOL}{label}"
+            )
 
 
 
@@ -397,11 +404,12 @@ def write_data_to_temporary_file(data_to_write: Union[Path, StreamType]) -> Path
         return Path(temp_file.name)
 
 # Define a router function for the multi-constructor, since it takes 3 arguments
-def vault_tag_router(loader, _tag_suffix: str, node: ScalarNode) -> TaggedScalar:
-    """Router function to handle vault-related tags."""
+def constructor_tmp_encrypt_multi(loader, _tag_suffix: str, node: ScalarNode) -> TaggedScalar:
+    """Wrapper function for the multiconstructor (needs one more argument than the constructor)"""
     return constructor_tmp_encrypt(loader, node, tag_suffix=_tag_suffix)
 
 def constructor_tmp_invalid_multi(loader, _tag_suffix: str, node: ScalarNode) -> TaggedScalar:
+    """Wrapper function for the multiconstructor (needs one more argument than the constructor)"""
     return constructor_tmp_invalid(loader, node)
 
 def encrypt_and_write_tmp_file(
@@ -414,7 +422,7 @@ def encrypt_and_write_tmp_file(
     # before the editor opens
     yaml.constructor.add_multi_constructor(
         f"{DECRYPTED_TAG_NAME}{VAULT_ID_TAG_SYMBOL}",
-        vault_tag_router
+        constructor_tmp_encrypt_multi
     )
     yaml.constructor.add_multi_constructor(
         TAG_NOT_LOADED_NAME,
