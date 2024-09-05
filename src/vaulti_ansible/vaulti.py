@@ -106,6 +106,7 @@ def setup_vault(ask_vault_pass: bool, vault_password_file: str = None,
                 vault_ids: list = None) -> VaultLib:
     """Set up the vault object to use for encryption/decyption. Handles prompting, etc. """
     loader = DataLoader()
+    logger = logging.getLogger("Vaulti")
 
     # If no custom vauld ids are specified, just go with the default
     if vault_ids is None:
@@ -114,6 +115,7 @@ def setup_vault(ask_vault_pass: bool, vault_password_file: str = None,
 
     # If a vault password file is specified, add it to the default id
     if vault_password_file:
+        logger.info("Vault password file specified as parameter, adding it as the default vault id")
         vault_ids.append(f"@{vault_password_file}")
     # Set up vault
     try:
@@ -147,6 +149,7 @@ def constructor_tmp_decrypt(_: RoundTripConstructor, node: ScalarNode) -> Tagged
     Gets passed self as an argument from YAML.
     """
 
+    logger = logging.getLogger("Vaulti")
     label = extract_vault_label(node.value)
 
     try:
@@ -155,18 +158,23 @@ def constructor_tmp_decrypt(_: RoundTripConstructor, node: ScalarNode) -> Tagged
 
         if label != "":
             decrypted_tag_with_label = f"{TAG_NAME_DECRYPTED_SUCCESS}{TAG_SEPARATOR_VAULTID}{label}"
+            logger.info("Decrypted variable with the vault-id %s", label)
         else:
             decrypted_tag_with_label = TAG_NAME_DECRYPTED_SUCCESS
+            logger.info("Decrypted variable with the default vault-id")
 
         # Make it easier to read decrypted variables with newlines in it
         if "\n" in decrypted_value:
+            logger.info("Printing multiline variable with newlines for easy reading/editing")
             return TaggedScalar(value=decrypted_value, style="|", tag=decrypted_tag_with_label)
+        logger.info("Decrypted variable with the default vault-id")
         return TaggedScalar(value=decrypted_value, style="", tag=decrypted_tag_with_label)
 
     except AnsibleVaultError:
         # If there is no label, it is probably just a variable encrypted with the wrong key
 
         if label == "":
+            logger.info("Could not decrypt variable with default vault id")
             return TaggedScalar(value=node.value, style="|", tag=TAG_NAME_COULD_NOT_DECRYPT)
         # If there is a label, it is probably because you just forgot to load the vault id,
         # and the temporary tag name might give you a hint
@@ -176,9 +184,11 @@ def constructor_tmp_decrypt(_: RoundTripConstructor, node: ScalarNode) -> Tagged
             get_secret_for_vault_id(VAULT, label)
             # If you did load the vault-id and it still failed, it is probably
             # just the wrong password
+            logger.info("Could not decrypt variable")
             return TaggedScalar(value=node.value, style="|", tag=TAG_NAME_COULD_NOT_DECRYPT)
         except ValueError:
             # If you did not load it, mention that using the tag
+            logger.info("Could not decrypt variable, vault-id %s not loaded", label)
             return TaggedScalar(
                 value=node.value, style="|",
                 tag=f"{TAG_NAME_UNKNOWN_LABEL}{TAG_SEPARATOR_VAULTID}{label}"
@@ -186,6 +196,7 @@ def constructor_tmp_decrypt(_: RoundTripConstructor, node: ScalarNode) -> Tagged
 
     except AnsibleError:
         # If the format is wrong, add that as a separate tag
+        logger.info("Could not decrypt variable with invalid format")
         return TaggedScalar(value=node.value, style="|", tag=TAG_NAME_INVALID_VAULT_FORMAT)
 
 
@@ -545,7 +556,7 @@ def parse_arguments() -> Namespace:
               "Only use this if everything in the file is encrypted with a single password",
     )
     parser.add_argument(
-        "--vault-password-file",
+        "--vault-password-file", "--vault-pass-file",
         help="Specify the password file for the default vault-id " +
               "(basically the same as '--vault-id @somefile.txt'). " +
               "Only use this if everything in the file is encrypted with a single password",
@@ -556,7 +567,10 @@ def parse_arguments() -> Namespace:
 
 def main_loop(filenames: Iterable[Path], view_only: bool, force_create: bool) -> None:
     """Loop through each file specified as params"""
+    logger = logging.getLogger("Vaulti")
     for filename in filenames:
+
+        logger.info("Starting process for file %s", filename)
 
         # Has the file been created by this script?
         file_force_created = False
@@ -571,7 +585,7 @@ def main_loop(filenames: Iterable[Path], view_only: bool, force_create: bool) ->
             sys.exit(1)
         except FileNotFoundError:
             if force_create:
-                #original_data = open(filename, "x", encoding="utf-8")
+                logger.info("--force specified as parameter, creating file %s", filename)
                 with open(filename, "x", encoding="utf-8") as empty_file:
                     original_data = empty_file
                 file_force_created = True
@@ -587,16 +601,19 @@ def main_loop(filenames: Iterable[Path], view_only: bool, force_create: bool) ->
         decrypted_data = read_encrypted_yaml_file(filename)
 
         if view_only:
+            logger.info("--view specified as parameter, will display and exit")
             display_yaml_data_and_exit(decrypted_data)
         # Run the rest inside a try-finally block to make sure the decrypted
         # tmp-file is deleted afterwards
         try:
             temp_filename = write_data_to_temporary_file(decrypted_data)
+            logger.info("Created temporary file %s", temp_filename)
             created_time = os.stat(temp_filename).st_ctime
             open_file_in_default_editor(temp_filename.absolute())
             # Don't do anything if the file hasn't been changed since its creation
             changed_time = os.stat(temp_filename).st_ctime
             if created_time != changed_time:
+                logger.info("File was saved after being created, continuing")
                 encrypt_and_write_tmp_file(
                     tmp_file=temp_filename,
                     final_file=filename,
@@ -604,9 +621,11 @@ def main_loop(filenames: Iterable[Path], view_only: bool, force_create: bool) ->
                 )
             else:
                 # If the file was created but never changed, delete it
+                logger.info("File was not saved after being created, exiting")
                 if file_force_created:
                     os.unlink(filename)
         finally:
+            logger.info("Remove temporary file %s", temp_filename)
             os.unlink(temp_filename)
 
 def get_secret_for_vault_id(vault_lib: VaultLib, vault_id: str) -> VaultSecret:
@@ -634,6 +653,9 @@ def main() -> None:
     # pylint: disable=global-statement
     global VAULT
 
+    logging.basicConfig(level=args.loglevel, format="%(levelname)s: %(message)s")
+    logger = logging.getLogger("Vaulti")
+    logger.info("Initializing vault setup")
     try:
         VAULT = setup_vault(
                     ask_vault_pass=args.ask_vault_pass,
@@ -641,8 +663,9 @@ def main() -> None:
                     vault_ids=args.vault_id
         )
     except KeyboardInterrupt:
+        logger.info("User interrupted process, exiting")
         sys.exit(0)
-    logging.basicConfig(level=args.loglevel, format="%(levelname)s: %(message)s")
+
     main_loop(args.files, view_only=args.view, force_create=args.force)
 
 
