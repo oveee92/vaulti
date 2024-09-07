@@ -2,6 +2,8 @@
 
 Utility to edit, create, encrypt and decrypt ansible-vault in-line encrypted variables in yaml files.
 
+If you wish you had `ansible-vault edit` for partially encrypted files, that is what this utility is trying to do.
+
 ## Usage
 
 ```shell
@@ -102,9 +104,8 @@ SomePasswordOrSomething # <Ctrl-D>, NOT <enter> unless you need the newline encr
 ansible -i the/relevant/inventory the-relevant-host -m debug -a "var=TheAnsibleVaultedVariable"
 ```
 
-Yikes... not really easy to remember, and pretty error-prone.
+Yikes... not really easy to remember, and pretty error-prone. Much easier to just open the decrypted content and edit it directly.
 
-**If you wish you had `ansible-vault edit` for partially encrypted files, that is what this utility is trying to do.**
 
 ## Why you should NOT use this
 
