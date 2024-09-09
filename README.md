@@ -147,11 +147,11 @@ the key name.
 
 Won't put the dependencies in the `pyproject.toml` file for now, since with Ansible, sometimes you
 want ansible-core on a specific version. Any mention of the required libraries will make pip upgrade
-ansible and ansible-core packages even if the requirements don't make it necessary.
+`ansible` and `ansible-core` packages even if the requirements don't make it necessary.
 
 Having to use `--no-deps` for installing this tool is just asking for trouble.
 
 ```
-ruamel.yaml>=0.16.6" # Won't work before this version due to TaggedScalar changes
-ansible>=2.4.0.0", # Won't work for older versions due to pycrypto
+ruamel.yaml>=0.16.6 # Won't work before this version due to TaggedScalar changes
+ansible>=2.4.0.0 # Won't work for older versions due to pycrypto
 ```
