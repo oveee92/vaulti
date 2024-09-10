@@ -288,7 +288,9 @@ def _process_commented_seq(
     original_data: CommentedSeq, reencrypted_data: CommentedSeq
 ) -> tuple[CommentedSeq, CommentedSeq]:
     """Helper function for compare_and_update. Loops over items in a list"""
-    for i in range(len(reencrypted_data)):
+    # Won't use enumerate for now, doesn't seem to be too easy to implement in the middle of this
+    # recursive logic
+    for i in range(len(reencrypted_data)): # pylint: disable=consider-using-enumerate
         if (
             is_tagged_scalar(reencrypted_data[i])
             and reencrypted_data[i].tag.value == "!vault"
