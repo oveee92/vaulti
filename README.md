@@ -1,6 +1,10 @@
 # Vaulti
 
-<video src='https://github.com/oveee92/vaulti/blob/5a6ca62f3ac5caf10d0c6707d74f486a4df459c5/docs/simpleusecase.mp4'></video>
+
+
+https://github.com/user-attachments/assets/74480694-3333-4405-8f68-248af21c9999
+
+
 
 Utility to edit, create, encrypt and decrypt ansible-vault in-line encrypted variables in yaml files.
 
