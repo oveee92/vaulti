@@ -1,16 +1,12 @@
 # Vaulti
 
-
-
-https://github.com/user-attachments/assets/74480694-3333-4405-8f68-248af21c9999
-
-
-
 Utility to edit, create, encrypt and decrypt ansible-vault in-line encrypted variables in yaml files.
 
 If you wish you had `ansible-vault edit` for partially encrypted files, that is what this utility is trying to do.
 
 ## Usage
+
+https://github.com/user-attachments/assets/74480694-3333-4405-8f68-248af21c9999
 
 ```shell
 ./vaulti file1 # If you want it to use standard ansible environment vars for the vault password
