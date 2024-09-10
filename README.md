@@ -163,6 +163,10 @@ Having to use `--no-deps` for installing this tool is just asking for trouble.
 Dependencies are:
 
 ```
+# We're using typing classes from Python3.9, and __future__ annotations is not not available before python 3.7.
+# Since ansible seems to skip 3.7, let's just say 3.8. Might work with 3.7, if you are using that for some reason.
+python>=3.8 
+
 ruamel.yaml>=0.16.6 # Won't work before this version due to TaggedScalar changes
 ansible>=2.4.0.0 # Won't work for older versions due to pycrypto
 ```
