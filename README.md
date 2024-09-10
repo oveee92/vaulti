@@ -1,6 +1,6 @@
 # Vaulti
 
-<video src='docs/simpleusecase.mp4'/>
+<video src='docs/simpleusecase.mp4'></video>
 
 Utility to edit, create, encrypt and decrypt ansible-vault in-line encrypted variables in yaml files.
 
