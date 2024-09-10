@@ -20,30 +20,41 @@ See ./vaulti -h for more usage details
 
 ## About
 
+### General
+
 This utility opens an editor where the encrypted variables have been decrypted!
+
 The "secret" variables are indicated with a special tag, `!ENCRYPT`.
 
-You can use the standard ansible methods of defining a vault password or vault password file.
+Variable files that could not be decrypted for whatever reason, get a tag indicating the problem, but is left untouched after exiting.
 
-You can add or remove the `!ENCRYPT` tags as you wish, and it will encrypt or decrypt for you.
+You can use the standard ansible methods of defining a vault password or vault password file, like `--ask-vault-pass` parameter,
+`ANSIBLE_VAULT_PASSWORD_FILE` environment variable and `--vault-id`.
 
-It supports different vault ids, by using the standard syntax used by ansible-vault, like `--vault-id mylabel@prompt --vault-id myotherlabel@prompt`.
+You can:
 
-Secrets decrypted with the non-default ID will be shown in the tag as `!ENCRYPT:mylabel`. You can also set these labels yourself, as long as 
-you actually loaded the relevant vault-id when starting the utility.
-
-**WARNING**: The labels are there to help you when prompted, but ansible-vault will try all of the keys when decrypting, no matter what.
-So if you have two vault-ids, but you swap the passwords on the prompt, it will still decrypt just fine. However, when you save and quit,
-now you'll encrypt the variables with the swapped passwords instead, which might lead to confusion.
-
-If it finds vaulted variables it cannot decrypt for any reason, it leaves them unencrypted, but changes the tag to `!COULD_NOT_DECRYPT`.
-The tag returns to `!vault` when you exit the editor.
+- Add or remove the `!ENCRYPT` tags as you wish, and it will encrypt or decrypt for you.
+- Read, edit and encrypt block scalars if you need to include newlines (`|`, `>`, `|-`, etc.), which can be useful when you want to encrypt private keys or other multi-line things.
+- Read and edit different vault ids in the same file
+- Swap to a different vault-id
 
 There are some quality of life features built in, such as:
 
 - if you edit the file to some invalid yaml, you'll get the chance to re-open the file and try again
 - ditto if you try to encrypt with a vault id that you didn't load when starting
 - if you comment out a line while it is decrypted, it will not be reencrypted, but it will produce a warning.
+
+### Vault ids
+
+Secrets decrypted with the non-default ID will be shown in the tag as `!ENCRYPT:mylabel`. You can also set these labels yourself, as long as 
+you actually loaded the relevant vault-id when starting the utility.
+
+**WARNING**: The labels are there to help *you* when prompted, but ansible-vault will try all of the keys when decrypting no matter what.
+So if you have two vault-ids, but you swap the passwords on the prompt, it will still decrypt just fine. However, when you save and quit,
+now you'll encrypt the variables with the swapped passwords instead, which might lead to confusion.
+
+If it finds vaulted variables it cannot decrypt for any reason, it leaves them unencrypted, but changes the tag to `!COULD_NOT_DECRYPT`.
+The tag returns to `!vault` when you exit the editor.
 
 
 ## Example
@@ -72,13 +83,6 @@ vaulti example/example_data.yml --vault-password-file example/.default_vault_pas
 git diff example_encrypted_data.yaml
 ```
 
-When inside the editor, you can:
-
-- remove the `!ENCRYPT` tag to decrypt and add new `!ENCRYPT` tags to whatever you want to encrypt.
-- add new variables, both with and without the `!ENCRYPT` tag, and add comments whereever the yaml spec lets you.
-- encrypt block scalars if you need to include newlines (`|`, `>`, `|-`, etc.), which can be useful when you want to encrypt private keys or other multi-line things.
-- add, change or remove the label from the `!ENCRYPT:label` tag to encrypt, reencrypt with a different vault id or decrypt
-
 ## Why this exists
 
 Ansible-vault works fine for encrypting/decrypting/editing whole files, but there are times you don't want to encrypt entire files; for example:
@@ -106,7 +110,8 @@ SomePasswordOrSomething # <Ctrl-D>, NOT <enter> unless you need the newline encr
 ansible -i the/relevant/inventory the-relevant-host -m debug -a "var=TheAnsibleVaultedVariable"
 ```
 
-Yikes... not really easy to remember, and pretty error-prone. Much easier to just open the decrypted content and edit it directly.
+Not really easy to remember, pretty error-prone and requires you to actually run something with ansible, putting the variable
+somewhere where it will actually be read (hostvars or groupvars). Much easier to just open the decrypted content and edit it directly.
 
 
 ## Why you should NOT use this
@@ -116,7 +121,8 @@ strange things could happen to the file you are editing. It isn't likely, and I'
 have your files in a git repo with the ability to revert files easily, please dont use this just yet (or just initialize a git repo first!)
 
 Also, if you try to change the yaml tags between `!COULD_NOT_DECRYPT`, `!vault` and `!ENCRYPT` when editing, you'll probably end up with unencrypted
-or broken variables. Stick to adding or removing the `!ENCRYPT` tags and their labels only for a good time.
+or broken variables. Stick to adding or removing the `!ENCRYPT` tags and their labels only, for a good time.
+
 
 ## Caveats
 
@@ -137,21 +143,24 @@ Also, there are a few "opinionated" things I've hardcoded, which are relatively 
 - An extra newline is added below the ansible-vault output, for readability.
 - No automatic line breaks for long values.
 
-Finally, a word on diffs. The script revolves around decrypting and reencrypting the variables, which means that every time you open a file with it, the
-encrypted string changes (different salt each time). Part of the script is therefore dedicated to looping through the re-encrypted file, comparing it with
-the original decrypted data, and preferring the old one if the actual value hasn't changed. That means that any git diff produced by these changes will
-usually just involve the relevant changed variables, but it is a "best effort" process. If you change the number encrypted variables in a list, the items
-whose list index was changed will be re-encrypted with a new salt, since the original value cannot be found. Same goes for any variables where you change
-the key name.
 
+Finally, a word on diffs. The script revolves around decrypting and reencrypting the variables, which means that every time you open a file with it, the
+encrypted string actually changes (different salt for each reencrypt). Part of the script is therefore dedicated to looping through the re-encrypted file, comparing it with
+the original decrypted data, and preferring the old encrypted string if the actual decrypted value hasn't changed. That means that any git diff produced by these changes will
+usually only involve the relevant changed variables, but it is a "best effort" process. If you change the number encrypted variables in a list, the items
+whose list index was changed will be re-encrypted with a new salt, since the original value cannot be found. Same goes for any variables where you change
+the key name. Create the key/entry with a regular editor first if this is important to you.
 
 ## Dependencies
 
 Won't put the dependencies in the `pyproject.toml` file for now, since with Ansible, sometimes you
-want ansible-core on a specific version. Any mention of the required libraries will make pip upgrade
-`ansible` and `ansible-core` packages even if the requirements don't make it necessary.
+want ansible-core on a specific version to keep a consistent execution environment. Any mention of
+the required libraries will make pip upgrade `ansible` and `ansible-core` packages even if the
+requirements don't make it necessary.
 
 Having to use `--no-deps` for installing this tool is just asking for trouble.
+
+Dependencies are:
 
 ```
 ruamel.yaml>=0.16.6 # Won't work before this version due to TaggedScalar changes
