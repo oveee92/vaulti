@@ -1,5 +1,7 @@
 # Vaulti
 
+<video src='docs/simpleusecase.mp4'/>
+
 Utility to edit, create, encrypt and decrypt ansible-vault in-line encrypted variables in yaml files.
 
 If you wish you had `ansible-vault edit` for partially encrypted files, that is what this utility is trying to do.
