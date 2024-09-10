@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/74480694-3333-4405-8f68-248af21c9999
 ./vaulti file1 [file2] [file3] [...] # Define multiple files if you wish
 ./vaulti file1 --ask-vault-pass # If you want to specify the password on the CLI
 ./vaulti file1 --ask-vault-pass --vault-id mylabel@prompt # You can also specify vault ids
-./vaulti file1 -r # Prints the output, doesn't let you edit. Useful for setting up custom git diff, etc.
+./vaulti file1 -r # Prints the output, doesn't let you edit. Useful for setting up custom git textconv, etc.
 ```
 
 See ./vaulti -h for more usage details

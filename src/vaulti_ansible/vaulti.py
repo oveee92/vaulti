@@ -134,21 +134,34 @@ def setup_vault(ask_vault_pass: bool, vault_password_file: str = None,
         sys.exit(1)
     return VaultLib(vault_secret)
 
+def get_secret_for_vault_id(vault_lib: VaultLib, vault_id: str) -> VaultSecret:
+    """ Retrieves the VaultSecret associated with a specific vault-id from a VaultLib object.
+    Useful for when you want to check whether you have actually added the vault-id at all
+    (as opposed to added it, but typed the wrong password)
+    """
+    # Access the _secrets attribute to get the dictionary of vault secrets
+    vault_secrets = vault_lib.secrets  # This is a list of tuples (vault_id, VaultSecret)
+
+    for id_label, secret in vault_secrets:
+        if id_label == vault_id:
+            return secret
+
+    raise ValueError(f"Vault secret with vault-id '{vault_id}' not found.")
 
 def extract_vault_label(vaulttext: str) -> str:
     """Extracts the label from the Vault ID line in the encrypted data.
-    Returns an empty string if default"""
+    Returns an empty string if the default vault-id is used"""
     first_line = vaulttext.splitlines()[0]
     parts = first_line.split(";")
     if len(parts) >= 4:
         return parts[3]  # This is the label
     return ""  # Return "" if no label is present
 
-def constructor_tmp_decrypt(_: RoundTripConstructor, node: ScalarNode) -> TaggedScalar:
-    """Constructor to translate between encrypted and unencrypted tags when
-    loading yaml
 
-    Gets passed self as an argument from YAML.
+def constructor_tmp_decrypt(_: RoundTripConstructor, node: ScalarNode) -> TaggedScalar:
+    """Constructor to translate encrypted values to decrypted values when loading yaml
+    before opening the editor. When encountering issues, it will not decrypt, but
+    temporarily change the tag to indicate what went wrong.
     """
 
     logger = logging.getLogger("Vaulti")
@@ -206,12 +219,9 @@ def constructor_tmp_decrypt(_: RoundTripConstructor, node: ScalarNode) -> Tagged
 def constructor_tmp_encrypt(
         _: RoundTripConstructor, node: ScalarNode, tag_suffix: str = None
     ) -> TaggedScalar:
-    """Constructor to encrypt YAML.
-
-    Gets passed self as an argument from YAML.
+    """Constructor to reencrypt values. Will look for vault-id labels in the tag, otherwise
+    just uses the default vault-id to encrypt.
     """
-
-    #print(f"Encrypting {node.tag} {node.value} with vault id {tag_suffix}")
 
     if tag_suffix is None:
         secret = get_secret_for_vault_id(VAULT, "default")
@@ -230,8 +240,11 @@ def constructor_tmp_encrypt(
 
 
 def constructor_tmp_invalid(_: RoundTripConstructor, node: ScalarNode) -> TaggedScalar:
-    """ The invalid tag should just be translated directly back to the original tag and value """
+    """ The invalid tag should just be translated directly back to the original tag and value.
+    Useful for when we are using custom tags, or when you don't want the !vault value to be changed
+    """
     return TaggedScalar(value=node.value, style="|", tag="!vault")
+
 
 
 def is_commented_map(data: Any) -> bool:
@@ -275,7 +288,7 @@ def _process_commented_seq(
     original_data: CommentedSeq, reencrypted_data: CommentedSeq
 ) -> tuple[CommentedSeq, CommentedSeq]:
     """Helper function for compare_and_update. Loops over items in a list"""
-    for i in range(len(reencrypted_data)):  # pylint: disable=consider-using-enumerate
+    for i in range(len(reencrypted_data)):
         if (
             is_tagged_scalar(reencrypted_data[i])
             and reencrypted_data[i].tag.value == "!vault"
@@ -300,10 +313,11 @@ def compare_and_update(
     original_data: Union[CommentedMap | CommentedSeq | TaggedScalar],
     reencrypted_data: Union[CommentedMap | CommentedSeq | TaggedScalar],
 ) -> Union[CommentedMap | CommentedSeq | TaggedScalar]:
-    """Take the new and original data, find each !vault entry, and if it exists
-    in the original data, decrypt both and compare them. If they are the same,
-    prefer the original data, to prevent useless diffs. Will also ensure that there
-    is a newline after a vaulted variable (for readability)"""
+    """Take the new and original data, find each !vault entry, and if it exists in the original
+    data, decrypt both and compare them. If they are the same, prefer the original data, to prevent
+    useless diffs. Will consider values different if the new and old values have different vault-id
+    labels. Will also ensure that there is a newline after a vaulted variable (for readability)
+    """
 
     # Loop recursively through everything
     if is_commented_map(original_data) and is_commented_map(reencrypted_data):
@@ -331,7 +345,8 @@ def compare_and_update(
 
 
 def ensure_newline(data: Union[CommentedMap, CommentedSeq], key: "str") -> None:
-    """Utility script, to avoid having to write it twice in the recursive stuff above"""
+    """Utility script, to avoid having to write it twice in the recursive _process_commented*()
+    functions above"""
     comment_nextline = data.ca.items.get(key)
     # Ensure that there is at least one newline after the vaulted value, for readability
     if comment_nextline is None:
@@ -366,7 +381,8 @@ def setup_yaml() -> YAML:
 
 
 def read_encrypted_yaml_file(file: Path) -> Any:
-    """Add a custom constructor to decrypt vault, and load the content"""
+    """Add a custom constructor to decrypt vault, and load the content. Used for the initial
+    decryption of the file"""
     yaml = setup_yaml()
     yaml.constructor.add_constructor("!vault", constructor_tmp_decrypt)
     with open(file, "r", encoding="utf-8") as file_to_decrypt:
@@ -374,7 +390,9 @@ def read_encrypted_yaml_file(file: Path) -> Any:
 
 
 def read_yaml_file(file: Path) -> Any:
-    """Load the yaml file"""
+    """Load the yaml file, mainly just to verify that this is a file, and that it is a valid yaml
+    file
+    """
     yaml = setup_yaml()
     try:
         with open(file, "r", encoding="utf-8") as file_to_read:
@@ -385,16 +403,15 @@ def read_yaml_file(file: Path) -> Any:
 
 
 def display_yaml_data_and_exit(yaml_data: Union[Path, StreamType]) -> None:
-    """Dumps the unencrypted content without opening an editor"""
+    """Dumps the unencrypted content to stdout without opening an editor. Useful when you want to
+    pipe it to something else, use it for git textconv, etc."""
     yaml = setup_yaml()
     yaml.dump(data=yaml_data, stream=sys.stdout)
     sys.exit(0)
 
 
 def _get_default_editor() -> List[str]:
-    """Get the default editor and open the provided file
-
-    Ignores additional parameters provided to the editor.
+    """Get the default editor from env variables, using sane defaults if the env is not set
     """
     editor = os.environ.get("VISUAL", "").split()
     if not editor:
@@ -424,20 +441,26 @@ def write_data_to_temporary_file(data_to_write: Union[Path, StreamType]) -> Path
         yaml.dump(data_to_write, temp_file)
         return Path(temp_file.name)
 
-# Define a router function for the multi-constructor, since it takes 3 arguments
 def constructor_tmp_encrypt_multi(loader, _tag_suffix: str, node: ScalarNode) -> TaggedScalar:
-    """Wrapper function for the multiconstructor (needs one more argument than the constructor)"""
+    """Wrapper function for the multiconstructor. The multiconstructor requires a function which 
+    has a parameter that takes the tag_suffix variable. Since we are not using the suffix in this
+    case, we just pass it to our standard constructor function, dropping the tag_suffix variable"""
     return constructor_tmp_encrypt(loader, node, tag_suffix=_tag_suffix)
 
 def constructor_tmp_invalid_multi(loader, _tag_suffix: str, node: ScalarNode) -> TaggedScalar:
-    """Wrapper function for the multiconstructor (needs one more argument than the constructor)"""
+    """Wrapper function for the multiconstructor. The multiconstructor requires a function which 
+    has a parameter that takes the tag_suffix variable. Since we are not using the suffix in this
+    case, we just pass it to our standard constructor function, dropping the tag_suffix variable"""
     return constructor_tmp_invalid(loader, node)
 
 def encrypt_and_write_tmp_file(
     tmp_file: Path, final_file: Path, original_data: CommentedMap
 ) -> None:
-    """Reencrypts yaml data and writes it to a file"""
+    """Reencrypts yaml data and writes it to a file using lots of custom constructors. Also ensures
+    that the user gets a chance to reopen invalid files, etc."""
+
     yaml = setup_yaml()
+
     # Register the constructor to let the yaml loader do the
     # reencrypting for you Adding it this late to avoid encryption step
     # before the editor opens
@@ -445,6 +468,9 @@ def encrypt_and_write_tmp_file(
         f"{TAG_NAME_DECRYPTED_SUCCESS}{TAG_SEPARATOR_VAULTID}",
         constructor_tmp_encrypt_multi
     )
+
+    # Also register constructors for the temporary tags added in constructor_tmp_decrypt()
+    # Multiconstructors used for when the tag might includes a vault-id
     yaml.constructor.add_multi_constructor(
         TAG_NAME_UNKNOWN_LABEL,
         constructor_tmp_invalid_multi
@@ -455,6 +481,13 @@ def encrypt_and_write_tmp_file(
     )
     yaml.constructor.add_constructor(TAG_NAME_DECRYPTED_SUCCESS, constructor_tmp_encrypt)
     yaml.constructor.add_constructor(TAG_NAME_COULD_NOT_DECRYPT, constructor_tmp_invalid)
+
+    # Not sure why I need to override the constructor for the !vault tag, since this is using
+    # another yaml object than the one where the constructor was added, , but apparently it is
+    # needed. Adding it in case someone pastes vault-encrypted variables when in the vaulti editor,
+    # and we need to prevent the yaml library from decrypting and putting the unencrypted value in
+    # the final file.
+    yaml.constructor.add_constructor("!vault", constructor_tmp_invalid)
 
     def prompt_user_action() -> str:
         while True:
@@ -630,22 +663,6 @@ def main_loop(filenames: Iterable[Path], view_only: bool, force_create: bool) ->
             logger.info("Remove temporary file %s", temp_filename)
             os.unlink(temp_filename)
 
-def get_secret_for_vault_id(vault_lib: VaultLib, vault_id: str) -> VaultSecret:
-    """
-    Retrieves the VaultSecret associated with a specific vault-id from a VaultLib object.
-
-    :param vault_lib: The VaultLib object containing vault secrets.
-    :param vault_id: The vault-id label whose secret you want to retrieve.
-    :return: The VaultSecret associated with the specified vault-id.
-    """
-    # Access the _secrets attribute to get the dictionary of vault secrets
-    vault_secrets = vault_lib.secrets  # This is a list of tuples (vault_id, VaultSecret)
-
-    for id_label, secret in vault_secrets:
-        if id_label == vault_id:
-            return secret
-
-    raise ValueError(f"Vault secret with vault-id '{vault_id}' not found.")
 
 def main() -> None:
     """Parse arguments and set up logging before moving on to the main loop"""
