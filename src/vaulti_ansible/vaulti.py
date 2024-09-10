@@ -551,22 +551,22 @@ def encrypt_and_write_tmp_file(
 def parse_arguments() -> Namespace:
     """Parse the arguments from the command line"""
     parser = argparse.ArgumentParser(
-        prog="vaulti", description="Helps you with inline encrypted variables"
+        prog="vaulti", description="Create and edit ansible-vault inline encrypted variables!"
     )
 
     parser.add_argument(
         "-r",
         "--view",
         action="store_true",
-        help="Just print the decrypted output, don't open an editor. " +
-            "NOTE: This will print your secrets in plaintext",
+        help="Just print the decrypted output, don't open an editor. "
+            "WARNING: This will print your secrets in plaintext.",
     )
     parser.add_argument(
         "-f",
         "--force",
         "--force-create",
         action="store_true",
-        help="If the file you specified does not already exist, create it",
+        help="If the file you specified does not already exist, create it instead of erroring.",
     )
 
     parser.add_argument(
@@ -575,28 +575,29 @@ def parse_arguments() -> Namespace:
         action="store_const",
         dest="loglevel",
         const=logging.INFO,
-        help="Print more details, for debugging. " +
-            "NOTE: This will print your secrets in plaintext",
+        help="Print more details, for debugging. "
+            "WARNING: This will probably print your secrets in plaintext!",
     )
     parser.add_argument(
-        "files", nargs="+", help="Specify one or more files that the script should open"
+        "files", nargs="+", help="Specify one or more files that the script should open. They are "
+        " processed one by one, so you must save and/or quit the editor in between each one."
     )
     parser.add_argument(
         '--vault-id', action='append',
-        help='Specify Vault ID(s) on the format label@sourcefile or label@prompt. ' +
+        help='Specify Vault ID(s) on the format label@sourcefile or label@prompt. '
              "One vault id per '--vault-id' parameter", default=[]
     )
     parser.add_argument(
         "-J", "--ask-vault-pass", "--ask-vault-password", action="store_true",
-        help="Get prompted for the default vault-id " +
-              "(basically the same as '--vault-id @prompt'). " +
-              "Only use this if everything in the file is encrypted with a single password",
+        help="Get prompted for the default vault-id "
+              "(basically the same as '--vault-id @prompt'). "
+              "Only works for variables encrypted with the default vault-id.",
     )
     parser.add_argument(
         "--vault-password-file", "--vault-pass-file",
-        help="Specify the password file for the default vault-id " +
-              "(basically the same as '--vault-id @somefile.txt'). " +
-              "Only use this if everything in the file is encrypted with a single password",
+        help="Specify the password file for the default vault-id "
+              "(basically the same as '--vault-id @somefile.txt'). "
+              "Only works for variables encrypted with the default vault-id.",
     )
 
     return parser.parse_args()
