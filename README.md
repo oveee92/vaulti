@@ -16,7 +16,7 @@ https://github.com/user-attachments/assets/74480694-3333-4405-8f68-248af21c9999
 ./vaulti file1 -r # Prints the output, doesn't let you edit. Useful for setting up custom git textconv, etc.
 ```
 
-See ./vaulti -h for more usage details
+See `./vaulti -h` for more usage details
 
 ## About
 
