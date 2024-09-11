@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "vaulti_ansible"
-version = "0.1.0"
+version = "0.1.1"
 authors = [
     { name="Ove", email="oveee92@gmail.com" },
 ]
@@ -20,11 +20,15 @@ description = "Utility for Ansible Vault inline-encrypted variables"
 readme = "README.md"
 requires-python = ">=3.8" # __future__ is not not available before python 3.7, and ansible seems to skip 3.7, so we just use 3.8
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
     "Operating System :: POSIX :: Linux",
     "Framework :: Ansible",
+    "Intended Audience :: System Administrators",
+    "Topic :: Security :: Cryptography",
+    "Topic :: System :: Systems Administration",
+    "Topic :: Utilities",
 ]
 license = {text = "MIT"}
 
