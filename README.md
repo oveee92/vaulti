@@ -42,7 +42,8 @@ There are some quality of life features built in, such as:
 - ditto if you try to encrypt with a vault id that you didn't load when starting
 - if you comment out a line while it is decrypted, it will not be reencrypted, but it will produce a warning.
 
-Variable files that could not be decrypted for whatever reason, get a tag indicating the problem, but is left untouched after exiting. Those tags are currently:
+Variable files that could not be decrypted for whatever reason, get a tag indicating the problem, but is left untouched after exiting.
+The list of tags, both for success and failure, are currently:
 
 - `!ENCRYPT` : Variables that have been decrypted, and will be reencrypted when you close the editor
 - `!VAULT_FORMAT_ERROR` : Variables that could not be parsed due to ansible-vault rejecting the format. It will revert to the original `!vault` tag/value untouched after you close the editor.
