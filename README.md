@@ -65,6 +65,10 @@ now you'll encrypt the variables with the swapped passwords instead, which might
 
 ## Example
 
+The dists have been published to PyPi, you can easily install it with `pip install vaulti_ansible`.
+
+Alternatively, you can clone this repo and use another installation method:
+
 ```shell
 # You can test this by cloning the repo, cd into it
 git clone https://github.com/oveee92/vaulti.git && cd vaulti
@@ -78,6 +82,11 @@ vaulti example/example_data.yml
 # OR just use it directly without "installing" it
 ./src/vaulti_ansible/vaulti.py example/example_data.yml
 
+```
+
+Then you can set up and use it
+
+```shell
 # If you want to use a password file, you can set it as a variable
 export ANSIBLE_VAULT_PASSWORD_FILE=example/.default_vault_pass.txt
 # OR specify it on the command line
