@@ -374,11 +374,12 @@ def setup_yaml() -> YAML:
     yaml.preserve_quotes = True
     # Prevent the yaml dumper from line-breaking the longer variables
     yaml.width = 2147483647
-    yaml.explicit_start = True  # Add --- at the start of the file
-    yaml.explicit_end = True  # Add ... at the end of the file
-    # Ensure list items are indented, not inline with the parent variable
+    # Add --- at the start of the file
+    yaml.explicit_start = True
+    # Add ... at the end of the file
+    yaml.explicit_end = True
+    # Ensure list items are indented by two, but not inline with the parent variable
     yaml.indent(mapping=2, sequence=4, offset=2)
-    # Register the constructor to let the yaml loader do the decrypting for you
     return yaml
 
 
