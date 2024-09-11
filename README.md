@@ -26,8 +26,6 @@ This utility opens an editor where the encrypted variables have been decrypted!
 
 The "secret" variables are indicated with a special tag, `!ENCRYPT`.
 
-Variable files that could not be decrypted for whatever reason, get a tag indicating the problem, but is left untouched after exiting.
-
 You can use the standard ansible methods of defining a vault password or vault password file, like `--ask-vault-pass` parameter,
 `ANSIBLE_VAULT_PASSWORD_FILE` environment variable and `--vault-id`.
 
@@ -43,6 +41,16 @@ There are some quality of life features built in, such as:
 - if you edit the file to some invalid yaml, you'll get the chance to re-open the file and try again
 - ditto if you try to encrypt with a vault id that you didn't load when starting
 - if you comment out a line while it is decrypted, it will not be reencrypted, but it will produce a warning.
+
+Variable files that could not be decrypted for whatever reason, get a tag indicating the problem, but is left untouched after exiting. Those tags are currently:
+
+- `!ENCRYPT` : Variables that have been decrypted, and will be reencrypted when you close the editor
+- `!VAULT_FORMAT_ERROR` : Variables that could not be parsed due to ansible-vault rejecting the format. It will revert to the original `!vault` tag/value untouched after you close the editor.
+- `!UNKNOWN_VAULT_ID_LABEL` : Variables that could not be decrypted, most likely because you did not load/specify the relevant vault id. It will revert to the original `!vault` tag/value untouched after you close the editor.
+- `!COULD_NOT_DECRYPT` : Variables that could not be decrypted, probably because you specified the wrong password. It will revert to the original `!vault` tag/value untouched after you close the editor.
+- `![any tag]:[label]`, for example `!ENCRYPT:foo`: Indicates that this value was decrypted with a specific vault-id label.
+
+
 
 ### Vault ids
 
