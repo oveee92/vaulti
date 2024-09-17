@@ -63,7 +63,7 @@ So if you have two vault-ids, but you swap the passwords on the prompt, it will 
 now you'll encrypt the variables with the swapped passwords instead, which might lead to confusion.
 
 
-## Example
+## Installation
 
 The dists have been published to PyPi, you can easily install it with `pip install vaulti_ansible`.
 
@@ -84,7 +84,9 @@ vaulti example/example_data.yml
 
 ```
 
-Then you can set up and use it
+## Example
+
+Now  you can set up and use it
 
 ```shell
 # If you want to use a password file, you can set it as a variable
