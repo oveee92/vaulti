@@ -84,7 +84,7 @@ from ruamel.yaml.comments import (
     TaggedScalar,
 )
 from ruamel.yaml.compat import StringIO
-from ruamel.yaml.constructor import RoundTripConstructor
+from ruamel.yaml.constructor import (RoundTripConstructor, DuplicateKeyError)
 from ruamel.yaml.tokens import (
     CommentToken,
 )  # To be able to insert newlines where needed
@@ -184,6 +184,7 @@ def constructor_tmp_decrypt(_: RoundTripConstructor, node: ScalarNode) -> Tagged
             return TaggedScalar(value=decrypted_value, style="|", tag=decrypted_tag_with_label)
         logger.info("Decrypted variable with the default vault-id")
         return TaggedScalar(value=decrypted_value, style="", tag=decrypted_tag_with_label)
+        #return ScalarNode(value=decrypted_value, style="", tag=decrypted_tag_with_label, anchor=node.anchor)
 
     except AnsibleVaultError:
         # If there is no label, it is probably just a variable encrypted with the wrong key
@@ -405,12 +406,11 @@ def read_yaml_file(file: Path) -> Any:
         sys.exit(1)
 
 
-def display_yaml_data_and_exit(yaml_data: Union[Path, StreamType]) -> None:
+def display_yaml_data(yaml_data: Union[Path, StreamType]) -> None:
     """Dumps the unencrypted content to stdout without opening an editor. Useful when you want to
     pipe it to something else, use it for git textconv, etc."""
     yaml = setup_yaml()
     yaml.dump(data=yaml_data, stream=sys.stdout)
-    sys.exit(0)
 
 
 def _get_default_editor() -> List[str]:
@@ -510,7 +510,7 @@ def encrypt_and_write_tmp_file(
             try:
                 edited_data = yaml.load(file)
                 is_file_parsed = True
-            except (ScannerError, ParserError, ValueError) as err:
+            except (ScannerError, ParserError, ValueError, DuplicateKeyError) as err:
                 if err is ValueError:
                     print(f"Encountered Vault ID which has not been loaded. Error is:\n{err}")
                 else:
@@ -641,7 +641,9 @@ def main_loop(filenames: Iterable[Path], view_only: bool, force_create: bool) ->
 
         if view_only:
             logger.info("--view specified as parameter, will display and exit")
-            display_yaml_data_and_exit(decrypted_data)
+            display_yaml_data(decrypted_data)
+            continue # Continue to the next loop (file)
+
         # Run the rest inside a try-finally block to make sure the decrypted
         # tmp-file is deleted afterwards
         try:
