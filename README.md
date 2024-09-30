@@ -32,9 +32,10 @@ You can use the standard ansible methods of defining a vault password or vault p
 It gives you the ability to:
 
 - Add or remove the `!ENCRYPT` tags as you wish, and it will encrypt or decrypt it for you.
-- Read, edit and encrypt block scalars if you need to include newlines (`|`, `>`, `|-`, etc.), which can be useful when you want to encrypt client certs, private keys or other multi-line values
+- Read, edit and encrypt block scalars if you need to include newlines (`|`, `>`, `|-`, etc.), which can be useful when you want to encrypt client certs, private keys or other multi-line values. Use `|-` or `>-` if you don't want a newline at the end (certain programs are finicky about this).
 - Read and edit different vault ids in the same file
 - Swap a variable to be encrypted by a different vault-id
+- Add or remove anchors where needed
 
 There are some quality of life features built in, such as:
 
