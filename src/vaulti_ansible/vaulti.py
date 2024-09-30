@@ -79,6 +79,7 @@ from ansible.parsing.vault import (VaultLib, VaultSecret)
 from ruamel.yaml import ScalarNode
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import (
+    CommentedBase,
     CommentedMap,
     CommentedSeq,
     TaggedScalar,
@@ -157,7 +158,6 @@ def extract_vault_label(vaulttext: str) -> str:
         return parts[3]  # This is the label
     return ""  # Return "" if no label is present
 
-
 def constructor_tmp_decrypt(_: RoundTripConstructor, node: ScalarNode) -> TaggedScalar:
     """Constructor to translate encrypted values to decrypted values when loading yaml
     before opening the editor. When encountering issues, it will not decrypt, but
@@ -181,17 +181,25 @@ def constructor_tmp_decrypt(_: RoundTripConstructor, node: ScalarNode) -> Tagged
         # Make it easier to read decrypted variables with newlines in it
         if "\n" in decrypted_value:
             logger.info("Printing multiline variable with newlines for easy reading/editing")
-            return TaggedScalar(value=decrypted_value, style="|", tag=decrypted_tag_with_label)
+            taggedscalar = TaggedScalar(
+                value=decrypted_value, style="|", tag=decrypted_tag_with_label
+            )
+            taggedscalar.yaml_set_anchor(node.anchor)
+            return taggedscalar
+
         logger.info("Decrypted variable with the default vault-id")
-        return TaggedScalar(value=decrypted_value, style="", tag=decrypted_tag_with_label)
-        #return ScalarNode(value=decrypted_value, style="", tag=decrypted_tag_with_label, anchor=node.anchor)
+        taggedscalar = TaggedScalar(value=decrypted_value, style="", tag=decrypted_tag_with_label)
+        taggedscalar.yaml_set_anchor(node.anchor)
+        return taggedscalar
 
     except AnsibleVaultError:
         # If there is no label, it is probably just a variable encrypted with the wrong key
 
         if label == "":
             logger.info("Could not decrypt variable with default vault id")
-            return TaggedScalar(value=node.value, style="|", tag=TAG_NAME_COULD_NOT_DECRYPT)
+            taggedscalar = TaggedScalar(value=node.value, style="|", tag=TAG_NAME_COULD_NOT_DECRYPT)
+            taggedscalar.yaml_set_anchor(node.anchor)
+            return taggedscalar
         # If there is a label, it is probably because you just forgot to load the vault id,
         # and the temporary tag name might give you a hint
 
@@ -201,19 +209,25 @@ def constructor_tmp_decrypt(_: RoundTripConstructor, node: ScalarNode) -> Tagged
             # If you did load the vault-id and it still failed, it is probably
             # just the wrong password
             logger.info("Could not decrypt variable")
-            return TaggedScalar(value=node.value, style="|", tag=TAG_NAME_COULD_NOT_DECRYPT)
+            taggedscalar = TaggedScalar(value=node.value, style="|", tag=TAG_NAME_COULD_NOT_DECRYPT)
+            taggedscalar.yaml_set_anchor(node.anchor)
+            return taggedscalar
         except ValueError:
             # If you did not load it, mention that using the tag
             logger.info("Could not decrypt variable, vault-id %s not loaded", label)
-            return TaggedScalar(
+            taggedscalar = TaggedScalar(
                 value=node.value, style="|",
                 tag=f"{TAG_NAME_UNKNOWN_LABEL}{TAG_SEPARATOR_VAULTID}{label}"
             )
+            taggedscalar.yaml_set_anchor(node.anchor)
+            return taggedscalar
 
     except AnsibleError:
         # If the format is wrong, add that as a separate tag
         logger.info("Could not decrypt variable with invalid format")
-        return TaggedScalar(value=node.value, style="|", tag=TAG_NAME_INVALID_VAULT_FORMAT)
+        taggedscalar = TaggedScalar(value=node.value, style="|", tag=TAG_NAME_INVALID_VAULT_FORMAT)
+        taggedscalar.yaml_set_anchor(node.anchor)
+        return taggedscalar
 
 
 
@@ -237,14 +251,18 @@ def constructor_tmp_encrypt(
         plaintext=node.value, secret=secret, vault_id=vault_id
     ).decode("utf-8")
 
-    return TaggedScalar(value=encrypted_value, style="|", tag="!vault")
+    taggedscalar = TaggedScalar(value=encrypted_value, style="|", tag="!vault")
+    taggedscalar.yaml_set_anchor(node.anchor)
+    return taggedscalar
 
 
 def constructor_tmp_invalid(_: RoundTripConstructor, node: ScalarNode) -> TaggedScalar:
     """ The invalid tag should just be translated directly back to the original tag and value.
     Useful for when we are using custom tags, or when you don't want the !vault value to be changed
     """
-    return TaggedScalar(value=node.value, style="|", tag="!vault")
+    taggedscalar = TaggedScalar(value=node.value, style="|", tag="!vault")
+    taggedscalar.yaml_set_anchor(node.anchor)
+    return taggedscalar
 
 
 
@@ -368,6 +386,13 @@ def ensure_newline(data: Union[CommentedMap, CommentedSeq], key: "str") -> None:
         data.ca.items[key][2] = newline_token
 
 
+def yaml_set_anchor(self, value, always_dump=True):
+    """ Overrides the default yaml_set_anchor function to set it to always_dump=True instead of
+    false. This is done so that any unused anchors that are loaded are preserved, not removed.
+    """
+    self.anchor.value = value
+    self.anchor.always_dump = always_dump
+
 def setup_yaml() -> YAML:
     """Set up the neccesary yaml loader stuff"""
     yaml = YAML()
@@ -381,6 +406,9 @@ def setup_yaml() -> YAML:
     yaml.explicit_end = True
     # Ensure list items are indented by two, but not inline with the parent variable
     yaml.indent(mapping=2, sequence=4, offset=2)
+    # Override the yaml_set_anchor to keep anchors even if they are unused
+    CommentedBase.yaml_set_anchor = yaml_set_anchor
+
     return yaml
 
 
@@ -463,6 +491,7 @@ def encrypt_and_write_tmp_file(
     that the user gets a chance to reopen invalid files, etc."""
 
     yaml = setup_yaml()
+
 
     # Register the constructor to let the yaml loader do the
     # reencrypting for you Adding it this late to avoid encryption step
