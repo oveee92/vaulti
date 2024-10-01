@@ -33,10 +33,11 @@ export ANSIBLE_VAULT_PASSWORD_FILE=example/.default_vault_pass.txt
 vaulti example/example_data.yml --vault-password-file example/.default_vault_pass.txt
 ```
 
-Make some changes to existing variables, create some new ones or remove some tags
-Save and quit, then open it regularly to see what changed, or just run git diff to see what happened
+Make some changes to existing variables, create some new ones or remove some tags.
 
-```
+Save and quit, then open it regularly to see what changed, or just run git diff to see what happened.
+
+```shell
 git diff example_encrypted_data.yaml
 ```
 
@@ -44,8 +45,6 @@ git diff example_encrypted_data.yaml
 
 You can use the standard ansible methods of defining a vault password or vault password file, like `--ask-vault-pass` parameter,
 `ANSIBLE_VAULT_PASSWORD_FILE` environment variable and `--vault-id`.
-
-It gives you the ability to:
 
 There are some quality of life features built in, such as:
 

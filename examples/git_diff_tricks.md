@@ -9,7 +9,7 @@ It has several parts, and is set up so that it only works for you, and doesn't m
 
 ## Custom wrapper script
 
-The script basivally tries to verify whether it is a yaml file and contains the string `!vault`. If it does, it
+The script basically tries to verify whether it is a yaml file and contains the string `!vault`. If it does, it
 passes it to vaulti with the `--view|-r` option, and if not, it just cats it out as it is.
 
 Content of `~/.local/bin/vaulti_wrapper.sh`:
