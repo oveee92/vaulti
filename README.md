@@ -1,123 +1,54 @@
 # Vaulti
 
-Utility to edit, create, encrypt and decrypt ansible-vault in-line encrypted variables in yaml files.
+Like `ansible-vault edit`, but for files with inline encrypted variables!
 
-If you wish you had `ansible-vault edit` for files with inline encrypted variables, that is what this utility is trying to do.
+Edit, create, encrypt and decrypt ansible-vault in-line encrypted variables in yaml files.
 
-## Usage
+
+## Usage example
 
 https://github.com/user-attachments/assets/74480694-3333-4405-8f68-248af21c9999
 
-```shell
-vaulti file1 # If you want it to use standard ansible environment vars for the vault password
-vaulti file1 [file2] [file3] [...] # Define multiple files if you wish
-vaulti file1 --ask-vault-pass # If you want to specify the password on the CLI
-vaulti file1 --ask-vault-pass --vault-id mylabel@prompt # You can also specify vault ids
-vaulti file1 -r # Prints the output, doesn't let you edit. Useful for setting up custom git textconv, etc.
-```
 
-See `vaulti -h` for more parameters.
-
-## About
-
-### General
-
-This utility opens an editor where the encrypted variables have been decrypted for you!
-
-The previously encrypted variables are indicated with a special tag, `!ENCRYPT`.
-
-You can use the standard ansible methods of defining a vault password or vault password file, like `--ask-vault-pass` parameter,
-`ANSIBLE_VAULT_PASSWORD_FILE` environment variable and `--vault-id`.
-
-It gives you the ability to:
-
-- Add or remove the `!ENCRYPT` tags as you wish, and it will encrypt or decrypt it for you.
-- Read, edit and encrypt block scalars if you need to include newlines (`|`, `>`, `|-`, etc.), which can be useful when you want to encrypt client certs, private keys or other multi-line values. Use `|-` or `>-` if you don't want a newline at the end (certain programs are finicky about this).
-- Read and edit different vault ids in the same file
-- Swap a variable to be encrypted by a different vault-id
-- Add or remove anchors where needed
-
-There are some quality of life features built in, such as:
-
-- if you edit the file to some invalid yaml, you'll get the chance to re-open the file and try again
-- ditto if you try to encrypt with a vault id that you didn't load when starting
-- if you comment out a line while it is decrypted, it will not be reencrypted, but it will produce a warning.
-
-Variable files that could not be decrypted for whatever reason, get a tag indicating the problem, but is left untouched after exiting.
-The list of tags, both for success and failure, are currently:
-
-- `!ENCRYPT` : Variables that have been decrypted, and will be reencrypted when you close the editor
-- `!VAULT_FORMAT_ERROR` : Variables that could not be parsed due to ansible-vault rejecting the format. It will revert to the original `!vault` tag/value untouched after you close the editor.
-- `!UNKNOWN_VAULT_ID_LABEL` : Variables that could not be decrypted, most likely because you did not load/specify the relevant vault id. It will revert to the original `!vault` tag/value untouched after you close the editor.
-- `!COULD_NOT_DECRYPT` : Variables that could not be decrypted, probably because you specified the wrong password. It will revert to the original `!vault` tag/value untouched after you close the editor.
-- `![any tag]:[label]`, for example `!ENCRYPT:foo`: Indicates that this value was decrypted with a specific vault-id label.
-
-
-
-### Vault ids
-
-Secrets decrypted with the non-default ID will be shown in the tag as `!ENCRYPT:mylabel`. You can also set these labels yourself, as long as 
-you actually loaded the relevant vault-id when starting the utility.
-
-**WARNING**: The labels are there to help *you* when prompted, but ansible-vault will try all of the keys when decrypting no matter what.
-So if you have two vault-ids, but you swap the passwords on the prompt, it will still decrypt just fine. However, when you save and quit,
-now you'll encrypt the variables with the swapped passwords instead, which might lead to confusion.
-
-
-## Installation
-
-The dists have been published to PyPi, you can easily install it with `pip install vaulti_ansible`.
-
-Alternatively, you can clone this repo and use another installation method:
+## Quick start
 
 ```shell
-# You can test this by cloning the repo, cd into it
-git clone https://github.com/oveee92/vaulti.git && cd vaulti
+# Install it
+pip install vaulti-ansible
 
-# then EITHER install it with pip to get it installed into your PATH and as a python module
-pip install .
-vaulti example/example_data.yml
-# OR put it somewhere in the PATH yourself
-cp .src/vaulti_ansible/vaulti.py ~/.local/bin/vaulti
-vaulti example/example_data.yml
-# OR just use it directly without "installing" it
-./src/vaulti_ansible/vaulti.py example/example_data.yml
+# Open a file for editing
+vaulti file.yml
 
+# See more options
+vaulti -h
 ```
 
-## Example
+## Features
 
-Now  you can set up and use it
+- Encrypt or decrypt files by adding or removing custom tags
+- Change encrypted values directly
+- Works for simple variables, lists, dicts, multiline variables (literals) and anchors
+- Works with multiple / non-default vault-ids
+- Print decrypted files to stdout
+- Some Quality of Life features to let you reopen the file if simple mistakes are made
 
-```shell
-# If you want to use a password file, you can set it as a variable
-export ANSIBLE_VAULT_PASSWORD_FILE=example/.default_vault_pass.txt
-# OR specify it on the command line
-vaulti example/example_data.yml --vault-password-file example/.default_vault_pass.txt
+See [examples folder](examples/) for more examples and user guides
 
-# To see the variables encrypted with the foo vault ID, load it too, either being prompted for the password, or referring to a file
-vaulti example/example_data.yml --vault-id foo@prompt
-vaulti example/example_data.yml --vault-id foo@example/.foo_vault_pass.txt
-
-# Make some changes to existing variables, create some new ones or remove some tags
-# Save and quit, then open it regularly to see what changed, or just run git diff to see what happened
-git diff example_encrypted_data.yaml
-```
 
 ## Why this exists
 
 The standard `ansible-vault` works fine for encrypting/decrypting/editing whole files, but there are times you don't want to encrypt entire files; for example:
 
-If you use AWX/AAP, having vault-encrypted files is a bit difficult; you either have to
+If you use AWX/AAP, having vault-encrypted files is a bit difficult; you either have to:
 
 - include the vault password in whichever container/Execution environment you are running the playbooks (therefore requiring a custom container image), or
 - decrypt the file when syncing the inventory (making all your secrets plaintext for those with high enough access in AWX)
 
-Additionally, if your control repo is getting large, with lots of host vars, group vars and roles, and you want to find out where certain variables are defined,
-you won't be able to search full vault-encrypted files easily, since all the keys are also encrypted.
+Additionally, if your control repo is getting large, with lots of `host_vars` variables, `group_vars` variables, complex playbooks and roles, and you want
+to find out where certain variables are defined, you won't be able to search full vault-encrypted files easily, since all the keys are also encrypted.
 
 So then you try inline encryption, which solves pretty much all of these problems, but using it with `ansible-vault edit <file>` is no longer possible...
-you have to do something like this instead:
+you now have to do something like this instead:
 
 ```shell
 ## To encrypt:
@@ -126,25 +57,26 @@ SomePasswordOrSomething # <Ctrl-D>, NOT <enter> unless you need the newline encr
 # Then copy the output into your yaml file, making sure the indentation is still ok
 
 ## To edit:
-# Encrypt a new string and replace it.
+# Not possible, just encrypt a new string and replace it.
+
+## To view:
+ansible -i the/relevant/inventory the-relevant-host -m debug -a "var=TheRelevantVariable"
 
 ## To decrypt:
-ansible -i the/relevant/inventory the-relevant-host -m debug -a "var=TheRelevantVariable"
+# Not possible, just view it and copy-paste the content where needed
+
 ```
 
-Not really easy to remember the encrypt and decrypt steps, pretty error-prone and requires you to actually run something with ansible, putting the variable
+Not really easy to remember the encrypt and view steps, pretty error-prone and requires you to actually run something with ansible, putting the variable
 somewhere where it will actually be read (hostvars or groupvars). It is *much* easier to just open the decrypted content and edit it directly.
 
 
 ## Why you should NOT use this
 
-I am a sysadmin by trade, not really a professional programmer, and the quality of the code might reflect that. It is getting better over time,
-but there may still be edge cases where strange things could happen to the file you are editing. It isn't likely, and I've used it without issue
-for some time, but if you don't have your files in a git repo with the ability to revert files easily, please dont use this just yet (or, better,
-just initialize a git repo first! If you need this utility, it's probably time for version control anyway)
-
-Also, if you try to change the yaml tags to or from the "invalid" tags, like `!COULD_NOT_DECRYPT`, when editing, you'll probably end up with unencrypted
-or even broken variables in your file. Stick to adding or removing the `!ENCRYPT` tags and their labels only, for the full experience.
+I am a sysadmin by trade, not really a professional programmer, and the quality of the code might reflect that. It is getting better over time, but
+there may still be edge cases where strange things could happen to the file you are editing. Yaml is a pretty complex specification after all. It
+isn't likely to break, and I've used it without issue for some time, but if you don't have your files in a git repo with the ability to revert files
+easily, please at least initialize a git repo first and do an initial commit! If you need this utility, it's probably time for version control anyway)
 
 ## Caveats
 
