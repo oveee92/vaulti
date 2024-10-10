@@ -93,6 +93,7 @@ from ruamel.yaml.error import StringMark  # To be able to insert newlines where 
 from ruamel.yaml.scanner import ScannerError
 from ruamel.yaml.parser import ParserError
 
+from __about__ import __version__
 
 # Definitions for the temporary tag names
 # should be descriptive enough to indicate the problem
@@ -164,6 +165,7 @@ def constructor_tmp_decrypt(_: RoundTripConstructor, node: ScalarNode) -> Tagged
     temporarily change the tag to indicate what went wrong.
     """
 
+    print(__version__)
     logger = logging.getLogger("Vaulti")
     label = extract_vault_label(node.value)
 
@@ -628,6 +630,11 @@ def parse_arguments() -> Namespace:
         help="Specify the password file for the default vault-id "
               "(basically the same as '--vault-id @somefile.txt'). "
               "Only works for variables encrypted with the default vault-id.",
+    )
+    parser.add_argument(
+        "-V", "--version", action="version",
+        version=f"v{__version__}",
+        help="Print the version of vaulti",
     )
 
     return parser.parse_args()
