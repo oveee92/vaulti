@@ -93,7 +93,7 @@ from ruamel.yaml.error import StringMark  # To be able to insert newlines where 
 from ruamel.yaml.scanner import ScannerError
 from ruamel.yaml.parser import ParserError
 
-from __about__ import __version__
+from .__about__ import __version__
 
 # Definitions for the temporary tag names
 # should be descriptive enough to indicate the problem
@@ -541,7 +541,8 @@ def encrypt_and_write_tmp_file(
             try:
                 edited_data = yaml.load(file)
                 is_file_parsed = True
-            except (ScannerError, ParserError, ValueError, DuplicateKeyError, ConstructorError) as err:
+            except (ScannerError, ParserError, ValueError,
+                    DuplicateKeyError, ConstructorError) as err:
                 if err is ValueError:
                     print(f"Encountered Vault ID which has not been loaded. Error is:\n{err}")
                 else:
