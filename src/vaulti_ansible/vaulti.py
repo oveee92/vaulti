@@ -165,7 +165,6 @@ def constructor_tmp_decrypt(_: RoundTripConstructor, node: ScalarNode) -> Tagged
     temporarily change the tag to indicate what went wrong.
     """
 
-    print(__version__)
     logger = logging.getLogger("Vaulti")
     label = extract_vault_label(node.value)
 
