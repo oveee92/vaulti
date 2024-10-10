@@ -85,7 +85,7 @@ from ruamel.yaml.comments import (
     TaggedScalar,
 )
 from ruamel.yaml.compat import StringIO
-from ruamel.yaml.constructor import (RoundTripConstructor, DuplicateKeyError)
+from ruamel.yaml.constructor import (RoundTripConstructor, DuplicateKeyError, ConstructorError)
 from ruamel.yaml.tokens import (
     CommentToken,
 )  # To be able to insert newlines where needed
@@ -539,7 +539,7 @@ def encrypt_and_write_tmp_file(
             try:
                 edited_data = yaml.load(file)
                 is_file_parsed = True
-            except (ScannerError, ParserError, ValueError, DuplicateKeyError) as err:
+            except (ScannerError, ParserError, ValueError, DuplicateKeyError, ConstructorError) as err:
                 if err is ValueError:
                     print(f"Encountered Vault ID which has not been loaded. Error is:\n{err}")
                 else:
