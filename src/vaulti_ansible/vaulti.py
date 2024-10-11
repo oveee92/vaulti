@@ -68,7 +68,36 @@ from typing import Iterable
 from typing import Union
 from typing import List
 
+# Since we are not adding requirements to the project (see README for details), we'll try to import
+# ruamel.yaml and ansible early, catching exceptions and giving a friendly explanation
+#pylint: disable-msg=C0103
+modules_not_found: bool = False
+try:
+    import ruamel.yaml as test_r # pylint: disable=unused-import
+except ModuleNotFoundError:
+    print(
+        "Vaulti requires the ruamel.yaml module to work (version 0.16.6 or higher). "
+        "Please install it, for example with 'pip install ruamel.yaml'",
+        file=sys.stderr
+    )
+    modules_not_found = True
 
+try:
+    import ansible as test_a # pylint: disable=unused-import
+except ModuleNotFoundError:
+    print(
+        "Vaulti requires the ansible-core module to work (version 2.4.0.0 or higher). "
+        "Please install it, for example with 'pip install ansible'",
+        file=sys.stderr
+    )
+    modules_not_found = True
+
+if modules_not_found:
+    sys.exit(1)
+#pylint: enable-msg=C0103
+
+# Disable import position check for the block due to the above try-except
+#pylint: disable=wrong-import-position
 from ansible import constants as C
 from ansible.cli import CLI
 from ansible.errors import AnsibleError
@@ -86,14 +115,15 @@ from ruamel.yaml.comments import (
 )
 from ruamel.yaml.compat import StringIO
 from ruamel.yaml.constructor import (RoundTripConstructor, DuplicateKeyError, ConstructorError)
+from ruamel.yaml.error import StringMark  # To be able to insert newlines where needed
+from ruamel.yaml.parser import ParserError
+from ruamel.yaml.scanner import ScannerError
 from ruamel.yaml.tokens import (
     CommentToken,
 )  # To be able to insert newlines where needed
-from ruamel.yaml.error import StringMark  # To be able to insert newlines where needed
-from ruamel.yaml.scanner import ScannerError
-from ruamel.yaml.parser import ParserError
 
 from vaulti_ansible.__about__ import __version__
+#pylint: enable=wrong-import-position
 
 # Definitions for the temporary tag names
 # should be descriptive enough to indicate the problem
