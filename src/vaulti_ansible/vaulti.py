@@ -93,7 +93,7 @@ from ruamel.yaml.error import StringMark  # To be able to insert newlines where 
 from ruamel.yaml.scanner import ScannerError
 from ruamel.yaml.parser import ParserError
 
-from .__about__ import __version__
+from vaulti_ansible.__about__ import __version__
 
 # Definitions for the temporary tag names
 # should be descriptive enough to indicate the problem
