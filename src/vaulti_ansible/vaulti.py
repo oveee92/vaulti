@@ -86,8 +86,10 @@ try:
     import ansible as test_a # pylint: disable=unused-import
 except ModuleNotFoundError:
     print(
-        "Vaulti requires the ansible-core module to work (version 2.4.0.0 or higher). "
-        "Please install it, for example with 'pip install ansible'",
+        "Vaulti requires the ansible-core module to work (ansible version 2.4.0.0 or higher).\n"
+        "It isn't installed automatically since we often want to stay on a specific ansible "
+        "version in production environments.\n"
+        "Please install it youself, for example with 'pip install ansible'",
         file=sys.stderr
     )
     modules_not_found = True
