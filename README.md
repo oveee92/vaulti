@@ -32,7 +32,7 @@ vaulti -h
 - Print decrypted files to stdout
 - Some Quality of Life features to let you reopen the file if simple mistakes are made
 
-See [examples folder](examples/) for more examples and user guides
+See [docs folder](docs/) for more examples and user guides
 
 
 ## Why this exists
