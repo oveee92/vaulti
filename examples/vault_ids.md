@@ -13,6 +13,7 @@ vaulti example/example_data.yml --vault-id foo@example/.foo_vault_pass.txt
 Secrets decrypted with the non-default ID will be shown in the tag as `!ENCRYPT:mylabel`. You can also set these labels yourself in the edit
 mode, as long as you actually loaded the relevant vault-id when starting the utility.
 
-**WARNING**: The labels are there to help *you* when prompted, but ansible-vault will try all of the keys when decrypting no matter what.
+**WARNING**: The labels are there to help *you* when prompted, but ansible-vault will try all of the keys when decrypting.
 So if you have two vault-ids, but you swap the passwords on the prompt, it will still decrypt just fine. However, when you save and quit,
 now you'll encrypt the variables with the swapped passwords instead, which will definitely lead to confusion.
+To avoid this, make sure to set the environment variable `ANSIBLE_VAULT_ID_MATCH=true`, or `vault_id_match  = True` in ansible.cfg.
