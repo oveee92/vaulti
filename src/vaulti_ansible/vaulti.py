@@ -144,20 +144,24 @@ def setup_vault(ask_vault_pass: bool, vault_password_file: str = None,
     loader = DataLoader()
     logger = logging.getLogger("Vaulti")
 
-    # If no custom vauld ids are specified, just go with the default
-    if vault_ids is None:
+    # If custom vault ids are specified (as parameters on the command line), use them
+    if vault_ids:
+        vault_ids_final = args.vault_id
+    # if not, just go with the default (based on environment variables and ansible.cfg)
+    else: 
         # This variable might exist, depending on the ansible configuration. Ignore it with pylint
-        vault_ids = C.DEFAULT_VAULT_IDENTITY_LIST  # pylint: disable=no-member
+        vault_ids_final = C.DEFAULT_VAULT_IDENTITY_LIST  # pylint: disable=no-member
 
     # If a vault password file is specified, add it to the default id
     if vault_password_file:
         logger.info("Vault password file specified as parameter, adding it as the default vault id")
         vault_ids.append(f"@{vault_password_file}")
+
     # Set up vault
     try:
         vault_secret = CLI.setup_vault_secrets(
             loader=loader,
-            vault_ids=vault_ids,
+            vault_ids=vault_ids_final,
             ask_vault_pass=ask_vault_pass,
         )
     except AnsibleError as err:
@@ -749,6 +753,7 @@ def main() -> None:
     logging.basicConfig(level=args.loglevel, format="%(levelname)s: %(message)s")
     logger = logging.getLogger("Vaulti")
     logger.info("Initializing vault setup")
+
     try:
         VAULT = setup_vault(
                     ask_vault_pass=args.ask_vault_pass,
