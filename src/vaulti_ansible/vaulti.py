@@ -691,7 +691,7 @@ def main_loop(filenames: Iterable[Path], view_only: bool, force_create: bool) ->
         # defining custom constructors
         try:
             original_data = read_yaml_file(filename)
-        except ScannerError as err:
+        except (ScannerError, DuplicateKeyError, ConstructorError) as err:
             print(f"'{filename}' is not a valid YAML file. Error is\n{err}", file=sys.stderr)
             sys.exit(1)
         except FileNotFoundError:
