@@ -71,25 +71,24 @@ Not really easy to remember the encrypt and view steps, pretty error-prone and r
 somewhere where it will actually be read (hostvars or groupvars). It is *much* easier to just open the decrypted content and edit it directly.
 
 
-## Why you should NOT use this
-
-I am a sysadmin by trade, not really a professional programmer, and the quality of the code might reflect that. It is getting better over time, but
-there may still be edge cases where strange things could happen to the file you are editing. Yaml is a pretty complex specification after all. It
-isn't likely to break, and I've used it without issue for some time, but if you don't have your files in a git repo with the ability to revert files
-easily, please at least initialize a git repo first and do an initial commit! If you need this utility, it's probably time for version control anyway)
-
 ## Caveats
 
-Since it uses the fantastic (yet sparsely documented) `ruamel.yaml`, and the yaml spec is pretty extensive, this utility does
-make some "non-negotiable" changes to your files that you should be aware of, that happens when we load and parse the yaml data:
+Editing yaml files using any YAML-loader is a "destructive" process. The content is loaded, and then
+dumped/re-generated as a new file after editing. Anything that isn't loaded, like comments or extra
+newlines will be gone.
+
+Since I'm using `ruamel.yaml`, it stores the comments and newlines too, however it will still
+re-generate the content every time you use it. This results in some "non-negotiable" changes to your
+files that you should be aware of:
 
 - Indentation for your multiline strings will always end up with a fixed (default two) spaces relative to the variable it belongs to;
   i.e. not the 10 spaces indented or whatever the default is from the `ansible-vault encrypt_string` output. This is good for consistency, but it does mean that the indentation
-  of your inline-encrypted variables will probably change the first time you use this, if you've previously used `ansible-vault encrypt_string` to generate the encrypted strings.
-  If you don't change the decrypted value, it should remain the same though, except for the indent change.
+  of your inline-encrypted variables will probably change the first time you use this if you've previously used `ansible-vault encrypt_string` to generate the encrypted strings.
+  If you don't change the decrypted value it should remain the same though, except for the indent change.
 - Extra whitespaces will be removed whereever it is found (for example `key:  value` -> `key: value`)
 
 Also, there are a few "opinionated" things I've hardcoded, which are relatively easy to comment out or change in `setup_yaml()` if you wish it.
+I might make this configurable via a config file later if there is a need.
 
 - Header (`---`) and footer (`...`) will be added automatically to the variable file if it doesn't exist.
 - An indent equals two spaces
@@ -97,23 +96,27 @@ Also, there are a few "opinionated" things I've hardcoded, which are relatively 
 - An extra newline is added below the ansible-vault output, for readability.
 - No automatic line breaks for long values.
 
-Finally, a word on diffs. The utility revolves around decrypting and reencrypting the variables, which means that every time you open a file with it, the
-encrypted string actually changes (different salt for each reencrypt). Part of the utility is therefore dedicated to looping through the re-encrypted file, comparing it with
-the original decrypted data, and preferring the old encrypted string if the actual decrypted value hasn't changed. That means that any git diff produced by these changes will
-usually only involve the relevant changed variables, but it is a "best effort" process. If you change the number encrypted variables in a list, the items
-whose list index was changed will be re-encrypted with a new salt, since the original value cannot be found. Same goes for any variables where you change
-the key name. Create the key/entry with a regular editor first if this is important to you.
+Finally, a word on diffs. The utility revolves around decrypting and reencrypting the variables,
+which means that every time you open a file with it, the encrypted string actually changes (because
+it has a different salt for each reencrypt). Part of the utility is therefore dedicated to looping
+through the re-encrypted file, comparing it with the original decrypted data, and preferring the old
+encrypted string if the actual decrypted value hasn't changed. That means that any git diff produced
+by these changes will usually only involve the relevant changed variables, but it is a "best effort"
+process based on very simple list index and dict key lookups. If you change the number encrypted
+variables in a list, the items whose list index was changed will be re-encrypted with a new salt,
+since the original value cannot be found. Same goes for any variables where you change the key name.
+Create the key/entry with a regular editor first if this is important to you.
 
 ## Dependencies
 
 Won't put the dependencies in the `pyproject.toml` file for now, since with Ansible, sometimes you
-want ansible-core on a specific version to keep a consistent execution environment. Any mention of
+want `ansible-core` on a specific version to keep a consistent execution environment. Any mention of
 the required libraries will make pip upgrade `ansible` and `ansible-core` packages even if the
 requirements don't make it necessary.
 
-Having to use `--no-deps` for installing this tool is just asking for trouble.
+Having to use `--no-deps` for installing this tool in a non-breaking way is just asking for trouble.
 
-Dependencies are:
+Dependencies and their reasons are:
 
 ```
 # We're using typing classes from Python3.9, and __future__ annotations is not not available before python 3.7.
