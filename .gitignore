@@ -1,4 +1,4 @@
-#dist/
+dist/
 .venv/
 tests/__pycache__/
 src/vaulti_ansible/__pycache__/
